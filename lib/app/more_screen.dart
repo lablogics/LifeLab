@@ -55,7 +55,7 @@ class MoreScreen extends StatelessWidget {
           _MenuItem(            icon: Icons.settings,
             title: 'Settings',
             subtitle: 'Profile, security, preferences',
-            onTap: () {},
+            onTap: () => context.go('/settings'),
           ),
         ],
       ),

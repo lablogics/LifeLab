@@ -19,6 +19,9 @@ import '../features/bookmarks/presentation/bookmarks_screen.dart';
 import '../features/contacts/presentation/contacts_screen.dart';
 import '../features/messages/presentation/messages_screen.dart';
 import '../features/totp/presentation/totp_screen.dart';
+import '../features/photos/presentation/photos_screen.dart';
+import '../features/drive/presentation/drive_screen.dart';
+import 'settings_screen.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authProvider);
   return GoRouter(
@@ -59,6 +62,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/contacts', builder: (context, state) => const ContactsScreen()),
           GoRoute(path: '/contacts/:id/messages', builder: (context, state) => MessagesScreen(contactId: state.pathParameters['id']!, contactName: state.pathParameters['id']!)),
           GoRoute(path: '/totp', builder: (context, state) => const TotpScreen()),
+          GoRoute(path: '/photos', builder: (context, state) => const PhotosScreen()),
+          GoRoute(path: '/drive', builder: (context, state) => const DriveScreen()),
+          GoRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
         ],
       ),
     ],
