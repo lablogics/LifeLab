@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:lifelab_core/api/api_client.dart';
 import 'package:lifelab_core/api/endpoints.dart';
 import 'package:lifelab_core/di/core_providers.dart';
-import 'package:lifelab_core/auth/auth_provider.dart';
 
 class DashboardStats {
   final int notes;

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lifelab_core/di/core_providers.dart';
 import '../data/projects_providers.dart';
 import '../data/models/project_model.dart';
 
