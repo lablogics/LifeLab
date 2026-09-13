@@ -47,7 +47,12 @@ class MoreScreen extends StatelessWidget {
             onTap: () => context.go('/contacts'),
           ),
           _MenuItem(
-            icon: Icons.settings,
+            icon: Icons.security,
+            title: 'Authenticator',
+            subtitle: 'TOTP codes',
+            onTap: () => context.go('/totp'),
+          ),
+          _MenuItem(            icon: Icons.settings,
             title: 'Settings',
             subtitle: 'Profile, security, preferences',
             onTap: () {},
