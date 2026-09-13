@@ -12,6 +12,13 @@ class DriveScreen extends ConsumerStatefulWidget {
 class _DriveScreenState extends ConsumerState<DriveScreen> {
   String? _selectedStorageId;
 
+  String _formatSize(int? bytes) {
+    if (bytes == null) return '';
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
   @override
   Widget build(BuildContext context) {
     final storages = ref.watch(storagesProvider);
@@ -19,21 +26,106 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Drive'), leading: drive.path.isNotEmpty ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => ref.read(driveProvider.notifier).goBack()) : null, actions: [
-        if (storages.storages.isNotEmpty)
-          DropdownButton<String>(value: _selectedStorageId, hint: const Text('Storage'), items: storages.storages.map((s) => DropdownMenuItem(value: s['id'] as String, child: Text(s['name'] as String? ?? 'Storage'))).toList(), onChanged: (v) { if (v != null) { setState(() => _selectedStorageId = v); ref.read(driveProvider.notifier).setStorage(v); } }),
-      ]),
+      appBar: AppBar(
+        title: Text(drive.pathNames.isEmpty ? 'Drive' : drive.pathNames.join(' / ')),
+        leading: drive.path.isNotEmpty ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => ref.read(driveProvider.notifier).goBack()) : null,
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: () => ref.read(driveProvider.notifier).refresh()),
+          IconButton(icon: const Icon(Icons.create_new_folder_outlined), onPressed: _showCreateFolderDialog),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(onPressed: () => _showItemActions(null), child: const Icon(Icons.add)),
       body: _selectedStorageId == null
-          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.folder_open, size: 64, color: theme.colorScheme.outline), const SizedBox(height: 16), const Text('Select a storage to browse files')]))
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.folder_open, size: 64, color: theme.colorScheme.outline),
+              const SizedBox(height: 16),
+              const Text('Select a storage to browse files'),
+              const SizedBox(height: 24),
+              if (storages.storages.isNotEmpty)
+                DropdownButton<String>(value: _selectedStorageId, hint: const Text('Storage'),
+                  items: storages.storages.map((s) => DropdownMenuItem(value: s['id'] as String, child: Text(s['name'] as String? ?? 'Storage'))).toList(),
+                  onChanged: (v) { if (v != null) { setState(() => _selectedStorageId = v); ref.read(driveProvider.notifier).setStorage(v); } }),
+            ]))
           : drive.isLoading
               ? const Center(child: CircularProgressIndicator())
               : drive.items.isEmpty
                   ? Center(child: Text('Empty folder', style: theme.textTheme.bodyLarge))
-                  : ListView.builder(itemCount: drive.items.length, itemBuilder: (ctx, i) {
-                      final item = drive.items[i];
-                      final isFolder = item.type == 'folder';
-                      return ListTile(leading: Icon(isFolder ? Icons.folder : Icons.insert_drive_file, color: isFolder ? Colors.amber : theme.colorScheme.outline), title: Text(item.name), onTap: isFolder ? () => ref.read(driveProvider.notifier).loadFolder(item.id) : null);
-                    }),
+                  : RefreshIndicator(
+                      onRefresh: () => ref.read(driveProvider.notifier).refresh(),
+                      child: ListView.builder(
+                        itemCount: drive.items.length,
+                        itemBuilder: (ctx, i) {
+                          final item = drive.items[i];
+                          final isFolder = item.type == 'folder';
+                          return ListTile(
+                            leading: Icon(isFolder ? Icons.folder : _iconForFile(item.name), color: isFolder ? Colors.amber : theme.colorScheme.outline),
+                            title: Text(item.name),
+                            subtitle: Text(isFolder ? 'Folder' : _formatSize(item.size)),
+                            trailing: PopupMenuButton<String>(
+                              onSelected: (v) => _handleItemAction(v, item),
+                              itemBuilder: (_) => [
+                                const PopupMenuItem(value: 'rename', child: Text('Rename')),
+                                const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                              ],
+                            ),
+                            onTap: isFolder ? () => ref.read(driveProvider.notifier).loadFolder(item.id, item.name) : null,
+                          );
+                        },
+                      ),
+                    ),
     );
   }
+
+  IconData _iconForFile(String name) {
+    final ext = name.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'pdf': return Icons.picture_as_pdf;
+      case 'jpg': case 'jpeg': case 'png': case 'gif': return Icons.image;
+      case 'mp4': case 'mov': case 'avi': return Icons.videocam;
+      case 'mp3': case 'wav': case 'flac': return Icons.audiotrack;
+      case 'doc': case 'docx': return Icons.description;
+      case 'xls': case 'xlsx': return Icons.table_chart;
+      default: return Icons.insert_drive_file;
+    }
+  }
+
+  void _showCreateFolderDialog() {
+    final ctrl = TextEditingController();
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('New Folder'),
+      content: TextField(controller: ctrl, decoration: const InputDecoration(labelText: 'Folder name'), autofocus: true),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        FilledButton(onPressed: () { ref.read(driveProvider.notifier).createFolder(ctrl.text.trim()); Navigator.pop(ctx); }, child: const Text('Create')),
+      ],
+    ));
+  }
+
+  void _handleItemAction(String action, DriveItem item) {
+    switch (action) {
+      case 'rename':
+        final ctrl = TextEditingController(text: item.name);
+        showDialog(context: context, builder: (ctx) => AlertDialog(
+          title: const Text('Rename'),
+          content: TextField(controller: ctrl, autofocus: true),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(onPressed: () { ref.read(driveProvider.notifier).renameItem(item.id, ctrl.text.trim()); Navigator.pop(ctx); }, child: const Text('Save')),
+          ],
+        ));
+        break;
+      case 'delete':
+        showDialog(context: context, builder: (ctx) => AlertDialog(
+          title: const Text('Delete'),
+          content: Text('Delete "${item.name}"?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton.tonal(onPressed: () { ref.read(driveProvider.notifier).deleteItem(item.id); Navigator.pop(ctx); }, child: const Text('Delete')),
+          ],
+        ));
+        break;
+    }
+  }
+
+  void _showItemActions(DriveItem? item) {}
 }

@@ -26,7 +26,10 @@ class Endpoints {
   static const String drive = '/api/drive';
   static const String storages = '/api/storages';
   static const String photos = '/api/photos';
+  static const String photosStarred = '/api/photos/starred';
+  static const String photosSearch = '/api/photos/search';
   static const String faces = '/api/faces';
+  static const String facesPeople = '/api/faces/people';
   static const String videos = '/api/videos';
   static const String dashboard = '/api/dashboard';
   static const String activity = '/api/activity';
@@ -35,4 +38,7 @@ class Endpoints {
   static const String exportImport = '/api/export/import';
   static const String push = '/api/push';
   static const String pushSubscribe = '/api/push/subscribe';
+  static const String versions = '/api/versions';
+  static const String attachments = '/api/attachments';
+  static const String notesWithTags = '/api/notes/with-tags';
 }

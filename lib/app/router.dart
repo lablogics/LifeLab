@@ -26,6 +26,13 @@ import '../features/mail/presentation/mail_screen.dart';
 import '../features/voice/presentation/voice_screen.dart';
 import '../features/finance/presentation/finance_screen.dart';
 import '../features/backup/presentation/backup_screen.dart';
+import '../features/videos/presentation/videos_screen.dart';
+import '../features/tags/presentation/tags_screen.dart';
+import '../features/graph/presentation/graph_screen.dart';
+import '../features/activity/presentation/activity_screen.dart';
+import '../features/versions/presentation/versions_screen.dart';
+import '../features/attachments/presentation/attachments_screen.dart';
+
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authProvider);
   return GoRouter(
@@ -67,7 +74,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/contacts/:id/messages', builder: (context, state) => MessagesScreen(contactId: state.pathParameters['id']!, contactName: state.pathParameters['id']!)),
           GoRoute(path: '/totp', builder: (context, state) => const TotpScreen()),
           GoRoute(path: '/photos', builder: (context, state) => const PhotosScreen()),
+          GoRoute(path: '/videos', builder: (context, state) => const VideosScreen()),
           GoRoute(path: '/drive', builder: (context, state) => const DriveScreen()),
+          GoRoute(path: '/tags', builder: (context, state) => const TagsScreen()),
+          GoRoute(path: '/graph', builder: (context, state) => const GraphScreen()),
+          GoRoute(path: '/activity', builder: (context, state) => const ActivityScreen()),
+          GoRoute(path: '/notes/:id/versions', builder: (context, state) => VersionsScreen(noteId: state.pathParameters['id']!, noteTitle: state.uri.queryParameters['title'] ?? 'Note')),
+          GoRoute(path: '/notes/:id/attachments', builder: (context, state) => AttachmentsScreen(noteId: state.pathParameters['id']!)),
           GoRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
           GoRoute(path: '/mail', builder: (context, state) => const MailScreen()),
           GoRoute(path: '/voice', builder: (context, state) => const VoiceScreen()),

@@ -4,21 +4,21 @@ import 'package:lifelab_core/api/endpoints.dart';
 import 'package:lifelab_core/di/core_providers.dart';
 
 class DriveItem {
-  final String id;
-  final String name;
-  final String type;
-  final String? parentId;
-  final int? size;
-  const DriveItem({required this.id, required this.name, required this.type, this.parentId, this.size});
-  factory DriveItem.fromJson(Map<String, dynamic> json) => DriveItem(id: json['id'] as String, name: json['name'] as String? ?? '', type: json['type'] as String? ?? 'file', parentId: json['parentId'] as String?, size: json['size'] as int?);
+  final String id; final String name; final String type; final String? parentId;
+  final int? size; final int? createdAt;
+  const DriveItem({required this.id, required this.name, required this.type, this.parentId, this.size, this.createdAt});
+  factory DriveItem.fromJson(Map<String, dynamic> json) => DriveItem(
+    id: json['id'] as String, name: json['name'] as String? ?? '',
+    type: json['type'] as String? ?? 'file', parentId: json['parentId'] as String?,
+    size: json['size'] as int?, createdAt: json['createdAt'] as int?);
 }
 
 class DriveState {
-  final List<DriveItem> items;
-  final List<String> path;
-  final bool isLoading;
-  const DriveState({this.items = const [], this.path = const [], this.isLoading = false});
-  DriveState copyWith({List<DriveItem>? items, List<String>? path, bool? isLoading}) => DriveState(items: items ?? this.items, path: path ?? this.path, isLoading: isLoading ?? this.isLoading);
+  final List<DriveItem> items; final List<String> path; final List<String> pathNames;
+  final bool isLoading; final String? error;
+  const DriveState({this.items = const [], this.path = const [], this.pathNames = const [], this.isLoading = false, this.error});
+  DriveState copyWith({List<DriveItem>? items, List<String>? path, List<String>? pathNames, bool? isLoading, String? error}) =>
+    DriveState(items: items ?? this.items, path: path ?? this.path, pathNames: pathNames ?? this.pathNames, isLoading: isLoading ?? this.isLoading, error: error);
 }
 
 class DriveNotifier extends StateNotifier<DriveState> {
@@ -26,9 +26,9 @@ class DriveNotifier extends StateNotifier<DriveState> {
   String? _storageId;
   DriveNotifier(this._api) : super(const DriveState());
 
-  void setStorage(String storageId) { _storageId = storageId; loadFolder(null); }
+  void setStorage(String storageId) { _storageId = storageId; loadFolder(null, ''); }
 
-  Future<void> loadFolder(String? parentId) async {
+  Future<void> loadFolder(String? parentId, String name) async {
     if (_storageId == null) return;
     state = state.copyWith(isLoading: true);
     try {
@@ -37,15 +37,41 @@ class DriveNotifier extends StateNotifier<DriveState> {
       final r = await _api.dio.dio.get(Endpoints.drive, queryParameters: params);
       final list = (r.data as List).map((e) => DriveItem.fromJson(e as Map<String, dynamic>)).toList();
       final newPath = parentId == null ? <String>[] : [...state.path, parentId];
-      state = state.copyWith(items: list, path: newPath, isLoading: false);
-    } catch (e) { state = state.copyWith(isLoading: false); }
+      final newPathNames = parentId == null ? <String>[] : [...state.pathNames, name];
+      state = state.copyWith(items: list, path: newPath, pathNames: newPathNames, isLoading: false);
+    } catch (e) { state = state.copyWith(isLoading: false, error: e.toString()); }
   }
 
   void goBack() {
     if (state.path.isEmpty) return;
     final newPath = List<String>.from(state.path)..removeLast();
-    loadFolder(newPath.isEmpty ? null : newPath.last);
+    final newPathNames = List<String>.from(state.pathNames)..removeLast();
+    loadFolder(newPath.isEmpty ? null : newPath.last, '');
   }
+
+  Future<void> createFolder(String name) async {
+    if (_storageId == null) return;
+    try {
+      await _api.dio.dio.post(Endpoints.drive, data: {'storageId': _storageId, 'name': name, 'type': 'folder', if (state.path.isNotEmpty) 'parentId': state.path.last});
+      loadFolder(state.path.isEmpty ? null : state.path.last, '');
+    } catch (e) { state = state.copyWith(error: e.toString()); }
+  }
+
+  Future<void> renameItem(String id, String name) async {
+    try {
+      await _api.dio.dio.put('${Endpoints.drive}/$id', data: {'name': name});
+      loadFolder(state.path.isEmpty ? null : state.path.last, '');
+    } catch (e) { state = state.copyWith(error: e.toString()); }
+  }
+
+  Future<void> deleteItem(String id) async {
+    try {
+      await _api.dio.dio.delete('${Endpoints.drive}/$id');
+      state = state.copyWith(items: state.items.where((i) => i.id != id).toList());
+    } catch (e) { state = state.copyWith(error: e.toString()); }
+  }
+
+  Future<void> refresh() async => loadFolder(state.path.isEmpty ? null : state.path.last, '');
 }
 
 final driveProvider = StateNotifierProvider<DriveNotifier, DriveState>((ref) => DriveNotifier(ref.watch(apiClientProvider)));
