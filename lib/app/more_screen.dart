@@ -21,7 +21,7 @@ class MoreScreen extends StatelessWidget {
             icon: Icons.search,
             title: 'Search',
             subtitle: 'Search across all content',
-            onTap: () {},
+            onTap: () => context.go('/search'),
           ),
           _MenuItem(
             icon: Icons.password,

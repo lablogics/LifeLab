@@ -13,6 +13,7 @@ import '../features/projects/presentation/board_screen.dart';
 import '../features/calendar/presentation/calendar_screen.dart';
 import 'shell.dart';
 import 'more_screen.dart';
+import '../features/search/presentation/search_screen.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authProvider);
   return GoRouter(
@@ -47,6 +48,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(path: '/calendar', builder: (context, state) => const CalendarScreen()),
           GoRoute(path: '/more', builder: (context, state) => const MoreScreen()),
+          GoRoute(path: '/search', builder: (context, state) => const SearchScreen()),
         ],
       ),
     ],
