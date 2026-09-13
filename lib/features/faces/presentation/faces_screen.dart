@@ -9,14 +9,12 @@ class FacesScreen extends ConsumerStatefulWidget {
 }
 
 class _FacesScreenState extends ConsumerState<FacesScreen> {
-  bool _loaded = false;
 
   @override
   void initState() {
     super.initState();
     Future.microtask(() {
       ref.read(facesProvider.notifier).loadPeople();
-      setState(() => _loaded = true);
     });
   }
 

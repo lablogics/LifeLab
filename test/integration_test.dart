@@ -35,15 +35,13 @@ void main() {
     });
 
     test('Pagination flow: load first page -> load more -> hasMore', () {
-      String? cursor = null;
+
       bool hasMore = true;
       final items = <String>[];
       items.addAll(['item1', 'item2', 'item3']);
-      cursor = 'cursor1';
       expect(items.length, 3);
       expect(hasMore, true);
       items.addAll(['item4', 'item5']);
-      cursor = null;
       hasMore = false;
       expect(items.length, 5);
       expect(hasMore, false);

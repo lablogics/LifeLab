@@ -48,7 +48,6 @@ class DriveNotifier extends StateNotifier<DriveState> {
   void goBack() {
     if (state.path.isEmpty) return;
     final newPath = List<String>.from(state.path)..removeLast();
-    final newPathNames = List<String>.from(state.pathNames)..removeLast();
     loadFolder(newPath.isEmpty ? null : newPath.last, '');
   }
 

@@ -6,8 +6,8 @@ import 'package:lifelab_core/api/endpoints.dart';
 import 'package:lifelab_core/di/core_providers.dart';
 import 'package:go_router/go_router.dart';
 
-class _GraphNode { final String id; final String title; double x, y, vx, vy; int connections; final Color color;
-  _GraphNode({required this.id, required this.title, required this.x, required this.y, this.vx = 0, this.vy = 0, this.connections = 0, this.color = Colors.blue}); }
+class _GraphNode { final String id; final String title; double x, y; int connections = 0; final Color color;
+  _GraphNode({required this.id, required this.title, required this.x, required this.y, this.color = Colors.blue}); }
 class _GraphEdge { final String sourceId; final String targetId;
   _GraphEdge({required this.sourceId, required this.targetId}); }
 

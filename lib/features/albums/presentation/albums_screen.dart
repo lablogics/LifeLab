@@ -9,14 +9,12 @@ class AlbumsScreen extends ConsumerStatefulWidget {
 }
 
 class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
-  bool _loaded = false;
 
   @override
   void initState() {
     super.initState();
     Future.microtask(() {
       ref.read(albumsProvider.notifier).loadAlbums();
-      setState(() => _loaded = true);
     });
   }
 
