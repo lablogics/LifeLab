@@ -10,8 +10,9 @@ import '../features/notes/presentation/note_edit_screen.dart';
 import '../features/todos/presentation/todos_list_screen.dart';
 import '../features/projects/presentation/projects_list_screen.dart';
 import '../features/projects/presentation/board_screen.dart';
+import '../features/calendar/presentation/calendar_screen.dart';
 import 'shell.dart';
-
+import 'more_screen.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authProvider);
   return GoRouter(
@@ -44,6 +45,8 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(path: ':id', builder: (context, state) => BoardScreen(projectId: state.pathParameters['id']!)),
             ],
           ),
+          GoRoute(path: '/calendar', builder: (context, state) => const CalendarScreen()),
+          GoRoute(path: '/more', builder: (context, state) => const MoreScreen()),
         ],
       ),
     ],
