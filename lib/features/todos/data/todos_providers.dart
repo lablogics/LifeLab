@@ -83,6 +83,7 @@ class TodosNotifier extends StateNotifier<TodosState> {
       );
       state = state.copyWith(todos: [todo, ...state.todos]);
       _sync?.enqueueCreate('todo', todo.id, {'title': todo.title});
+      _sync?.sync();
       return todo;
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -94,6 +95,7 @@ class TodosNotifier extends StateNotifier<TodosState> {
     try {
       await _repository.toggleTodo(id);
       _sync?.enqueueUpdate('todo', id, {'completed': true});
+      _sync?.sync();
       state = state.copyWith(
         todos: state.todos.map((t) {
           if (t.id == id) return t.copyWith(completed: !t.completed);
@@ -109,6 +111,7 @@ class TodosNotifier extends StateNotifier<TodosState> {
     try {
       await _repository.deleteTodo(id);
       _sync?.enqueueDelete('todo', id);
+      _sync?.sync();
       state = state.copyWith(
         todos: state.todos.where((t) => t.id != id).toList(),
       );
@@ -121,6 +124,7 @@ class TodosNotifier extends StateNotifier<TodosState> {
     try {
       await _repository.updateTodo(id, title: title, dueDate: dueDate, priority: priority);
       _sync?.enqueueUpdate('todo', id, {'title': title ?? '', 'dueDate': dueDate ?? '', 'priority': priority ?? ''});
+      _sync?.sync();
       await loadTodos();
     } catch (e) {
       state = state.copyWith(error: e.toString());

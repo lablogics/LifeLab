@@ -42,6 +42,13 @@ class BookmarksNotifier extends StateNotifier<BookmarksState> {
       await loadBookmarks();
     } catch (e) { state = state.copyWith(error: e.toString()); }
   }
+
+  Future<void> importBookmarks(String jsonData) async {
+    try {
+      await _api.dio.dio.post('${Endpoints.bookmarks}/import', data: {'data': jsonData});
+      await loadBookmarks();
+    } catch (e) { state = state.copyWith(error: e.toString()); }
+  }
 }
 
 final bookmarksProvider = StateNotifierProvider<BookmarksNotifier, BookmarksState>((ref) {

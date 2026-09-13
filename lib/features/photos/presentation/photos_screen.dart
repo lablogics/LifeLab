@@ -103,6 +103,13 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
     );
   }
 
+  String _formatPhotoSize(int? bytes) {
+    if (bytes == null) return '';
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
   Widget _viewChip(String label, PhotosView view, PhotosView current) {
     return Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: FilterChip(
       label: Text(label), selected: view == current,
@@ -114,13 +121,15 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
     showModalBottomSheet(context: context, builder: (ctx) => Padding(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, children: [
       Text(photo.name, style: Theme.of(ctx).textTheme.titleMedium),
       const SizedBox(height: 8),
-      if (photo.width != null) Text('${photo.width}x${photo.height}'),
+      if (photo.size != null) Text(_formatPhotoSize(photo.size)),
+      if (photo.width != null) Text('Dimensions: ${photo.width}x${photo.height}'),
       if (photo.cameraModel != null) Text('Camera: ${photo.cameraModel}'),
       if (photo.takenAt != null) Text('Taken: ${DateTime.fromMillisecondsSinceEpoch(photo.takenAt!).toLocal()}'),
       if (photo.latitude != null) Text('Location: ${photo.latitude}, ${photo.longitude}'),
       const SizedBox(height: 16),
       Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
         IconButton(icon: Icon(photo.starred ? Icons.star : Icons.star_border), onPressed: () { ref.read(photosProvider.notifier).toggleStar(photo.id); Navigator.pop(ctx); }),
+        IconButton(icon: Icon(photo.favorite ? Icons.favorite : Icons.favorite_border, color: photo.favorite ? Colors.red : null), onPressed: () { ref.read(photosProvider.notifier).toggleFavorite(photo.id); }),
         IconButton(icon: const Icon(Icons.share), onPressed: () { showDialog(context: context, builder: (_) => PhotoShareDialog(photoId: photo.id, photoName: photo.name)); }),
         IconButton(icon: const Icon(Icons.delete_outline), onPressed: () { ref.read(photosProvider.notifier).trashPhoto(photo.id); Navigator.pop(ctx); }),
         if (photo.trashed) IconButton(icon: const Icon(Icons.restore), onPressed: () { ref.read(photosProvider.notifier).restorePhoto(photo.id); Navigator.pop(ctx); }),

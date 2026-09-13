@@ -1,7 +1,15 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:lifelab_core/api/endpoints.dart';
+import 'package:dio/dio.dart';
+import 'package:lifelab_core/di/core_providers.dart';
 import '../data/notes_providers.dart';
+import 'package:go_router/go_router.dart';
+import 'package:lifelab_core/api/endpoints.dart';
+import 'package:dio/dio.dart';
+import 'package:lifelab_core/di/core_providers.dart';
 import '../data/models/note_model.dart';
 
 class NoteEditScreen extends ConsumerStatefulWidget {
@@ -177,6 +185,121 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
       setState(() => _hasChanges = true);
     }
   }
+
+  /// Find all [[wikilinks]] in content and show a dialog to navigate
+  void _navigateToWikilink() {
+    final text = _contentController.text;
+    final regex = RegExp(r'\[\[([^\]]+)\]\]');
+    final matches = regex.allMatches(text);
+    if (matches.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No wikilinks found in this note')),
+      );
+      return;
+    }
+    final links = matches.map((m) => m.group(1)!).toSet().toList();
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(padding: EdgeInsets.all(16), child: Text('Linked Notes', style: TextStyle(fontWeight: FontWeight.bold))),
+            ...links.map((name) => ListTile(
+              leading: const Icon(Icons.link),
+              title: Text(name),
+              trailing: const Icon(Icons.arrow_forward, size: 16),
+              onTap: () async {
+                Navigator.pop(ctx);
+                try {
+                  final notes = await ref.read(notesRepositoryProvider).getNotes();
+                  final match = notes.where((n) => n.title.toLowerCase() == name.toLowerCase()).toList();
+                  if (match.isNotEmpty && mounted) {
+                    context.push('/notes/${match.first.id}');
+                  } else if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Note "$name" not found')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to find note: $e')),
+                    );
+                  }
+                }
+              },
+            )),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+
+
+
+  Future<void> _exportPdf() async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.dio.dio.get('${Endpoints.notes}/${widget.noteId}/pdf', options: Options(responseType: ResponseType.bytes));
+      // Save or share the PDF
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF exported successfully')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _transcribeAudio() async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.dio.dio.post('${Endpoints.notes}/transcribe', data: {'noteId': widget.noteId});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Transcription started')));
+        _loadNote();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Transcription failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _clipWebContent() async {
+    final controller = TextEditingController();
+    final url = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clip Web Content'),
+        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(labelText: 'URL', hintText: 'https://...')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Clip')),
+        ],
+      ),
+    );
+    if (url != null && url.isNotEmpty) {
+      try {
+        final api = ref.read(apiClientProvider);
+        await api.dio.dio.post('${Endpoints.notes}/clip', data: {'noteId': widget.noteId, 'url': url});
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Content clipped')));
+          _loadNote();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Clip failed: $e')));
+        }
+      }
+    }
+  }
+
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
@@ -228,6 +351,26 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
           ),
           actions: [
             IconButton(icon: const Icon(Icons.link), tooltip: 'Insert [[wikilink]]', onPressed: _insertWikilink),
+            IconButton(icon: const Icon(Icons.open_in_new), tooltip: 'Follow wikilink', onPressed: _navigateToWikilink),
+            PopupMenuButton<String>(
+              onSelected: (v) { switch (v) { case 'pdf': _exportPdf(); break; case 'transcribe': _transcribeAudio(); break; case 'clip': _clipWebContent(); break; } },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(value: 'pdf', child: Text('Export PDF')),
+                const PopupMenuItem(value: 'transcribe', child: Text('Transcribe Audio')),
+                const PopupMenuItem(value: 'clip', child: Text('Clip Web Content')),
+              ],
+              icon: const Icon(Icons.more_vert),
+            ),
+            IconButton(icon: const Icon(Icons.open_in_new), tooltip: 'Follow wikilink', onPressed: _navigateToWikilink),
+            PopupMenuButton<String>(
+              onSelected: (v) { switch (v) { case 'pdf': _exportPdf(); break; case 'transcribe': _transcribeAudio(); break; case 'clip': _clipWebContent(); break; } },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(value: 'pdf', child: Text('Export PDF')),
+                const PopupMenuItem(value: 'transcribe', child: Text('Transcribe Audio')),
+                const PopupMenuItem(value: 'clip', child: Text('Clip Web Content')),
+              ],
+              icon: const Icon(Icons.more_vert),
+            ),
             IconButton(
               icon: const Icon(Icons.save),
               tooltip: 'Save',

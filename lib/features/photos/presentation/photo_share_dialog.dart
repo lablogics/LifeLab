@@ -14,10 +14,35 @@ class PhotoShareDialog extends ConsumerStatefulWidget {
 
 class _PhotoShareDialogState extends ConsumerState<PhotoShareDialog> {
   String? _shareLink;
+  List<Map<String, dynamic>> _existingShares = [];
   bool _loading = false;
   bool _copied = false;
   int _expirationDays = 7;
   bool _linkCreated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingShares();
+  }
+
+  Future<void> _loadExistingShares() async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.dio.dio.get('/api/photos/shares');
+      final items = (r.data as Map<String, dynamic>)['items'] as List? ?? [];
+      final photoShares = items.where((s) => s['photoId'] == widget.photoId).toList();
+      if (mounted) setState(() => _existingShares = photoShares.cast<Map<String, dynamic>>());
+    } catch (_) {}
+  }
+
+  Future<void> _deleteShare(String shareId) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      await api.dio.dio.delete('/api/photos/shares/$shareId');
+      _loadExistingShares();
+    } catch (_) {}
+  }
 
   Future<void> _createShareLink() async {
     setState(() => _loading = true);
@@ -54,6 +79,20 @@ class _PhotoShareDialogState extends ConsumerState<PhotoShareDialog> {
         children: [
           Text(widget.photoName, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.outline)),
           const SizedBox(height: 16),
+          if (_existingShares.isNotEmpty) ...[
+            const Text('Existing share links:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            const SizedBox(height: 8),
+            ..._existingShares.map((s) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(children: [
+                Expanded(child: Text(s['url'] as String? ?? s['token'] as String? ?? 'Link', style: const TextStyle(fontSize: 11, fontFamily: 'monospace'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                IconButton(icon: const Icon(Icons.delete, size: 14), onPressed: () => _deleteShare(s['id'] as String), visualDensity: VisualDensity.compact),
+              ]),
+            )),
+            const SizedBox(height: 8),
+            const Divider(),
+            const SizedBox(height: 8),
+          ],
           if (!_linkCreated) ...[
             DropdownButtonFormField<int>(
               value: _expirationDays,

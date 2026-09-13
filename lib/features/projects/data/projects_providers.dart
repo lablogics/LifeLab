@@ -47,6 +47,7 @@ class ProjectsNotifier extends StateNotifier<ProjectsState> {
     try {
       await _repo.createProject(name, description: description);
       _sync?.enqueueCreate('project', name, {'name': name, 'description': description ?? ''});
+      _sync?.sync();
       await loadProjects();
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -57,6 +58,7 @@ class ProjectsNotifier extends StateNotifier<ProjectsState> {
     try {
       await _repo.deleteProject(id);
       _sync?.enqueueDelete('project', id);
+      _sync?.sync();
       state = state.copyWith(projects: state.projects.where((p) => p.id != id).toList());
     } catch (e) {
       state = state.copyWith(error: e.toString());

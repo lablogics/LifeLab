@@ -14,7 +14,12 @@ class BookmarksScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Bookmarks')),
+      appBar: AppBar(
+        title: const Text('Bookmarks'),
+        actions: [
+          IconButton(icon: const Icon(Icons.file_upload), tooltip: 'Import', onPressed: () => _showImportDialog(context, ref)),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(onPressed: () => _showAddDialog(context, ref), child: const Icon(Icons.add)),
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -51,6 +56,28 @@ class BookmarksScreen extends ConsumerWidget {
           ref.read(bookmarksProvider.notifier).createBookmark(BookmarkModel(id: '', url: urlCtrl.text, title: titleCtrl.text, description: descCtrl.text));
           Navigator.pop(ctx);
         }, child: const Text('Save')),
+      ],
+    ));
+  }
+
+
+  void _showImportDialog(BuildContext context, WidgetRef ref) {
+    final ctrl = TextEditingController();
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Import Bookmarks'),
+      content: TextField(
+        controller: ctrl,
+        maxLines: 8,
+        decoration: const InputDecoration(hintText: 'Paste JSON bookmarks data...', border: OutlineInputBorder()),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        FilledButton(onPressed: () {
+          if (ctrl.text.trim().isNotEmpty) {
+            ref.read(bookmarksProvider.notifier).importBookmarks(ctrl.text.trim());
+            Navigator.pop(ctx);
+          }
+        }, child: const Text('Import')),
       ],
     ));
   }

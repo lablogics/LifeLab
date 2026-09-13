@@ -14,7 +14,12 @@ class ContactsScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Contacts')),
+      appBar: AppBar(
+        title: const Text('Contacts'),
+        actions: [
+          IconButton(icon: const Icon(Icons.file_upload), tooltip: 'Import', onPressed: () => _showImportDialog(context, ref)),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(onPressed: () => _showAddDialog(context, ref), child: const Icon(Icons.add)),
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -55,6 +60,27 @@ class ContactsScreen extends ConsumerWidget {
           ref.read(contactsProvider.notifier).createContact(ContactModel(id: '', firstName: firstCtrl.text, lastName: lastCtrl.text, email: emailCtrl.text, phone: phoneCtrl.text, company: companyCtrl.text));
           Navigator.pop(ctx);
         }, child: const Text('Save')),
+      ],
+    ));
+  }
+
+  void _showImportDialog(BuildContext context, WidgetRef ref) {
+    final ctrl = TextEditingController();
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Import Contacts'),
+      content: TextField(
+        controller: ctrl,
+        maxLines: 8,
+        decoration: const InputDecoration(hintText: 'Paste JSON contacts data...', border: OutlineInputBorder()),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        FilledButton(onPressed: () {
+          if (ctrl.text.trim().isNotEmpty) {
+            ref.read(contactsProvider.notifier).importContacts(ctrl.text.trim());
+            Navigator.pop(ctx);
+          }
+        }, child: const Text('Import')),
       ],
     ));
   }

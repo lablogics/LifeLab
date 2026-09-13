@@ -108,6 +108,27 @@ class DriveNotifier extends StateNotifier<DriveState> {
     } catch (e) { state = state.copyWith(error: e.toString()); }
   }
 
+  Future<void> starItem(String id) async {
+    try {
+      await _api.dio.dio.put('${Endpoints.drive}/$id', data: {'starred': true});
+      loadFolder(state.path.isEmpty ? null : state.path.last, '');
+    } catch (e) { state = state.copyWith(error: e.toString()); }
+  }
+
+  Future<void> trashItem(String id) async {
+    try {
+      await _api.dio.dio.put('${Endpoints.drive}/$id', data: {'trashed': true});
+      state = state.copyWith(items: state.items.where((i) => i.id != id).toList());
+    } catch (e) { state = state.copyWith(error: e.toString()); }
+  }
+
+  Future<void> restoreItem(String id) async {
+    try {
+      await _api.dio.dio.put('${Endpoints.drive}/$id', data: {'trashed': false});
+      loadFolder(state.path.isEmpty ? null : state.path.last, '');
+    } catch (e) { state = state.copyWith(error: e.toString()); }
+  }
+
   void setStarredView(bool starred) { state = state.copyWith(starred: starred, trashed: false); }
   void setTrashView(bool trashed) { state = state.copyWith(trashed: trashed, starred: false); }
 }

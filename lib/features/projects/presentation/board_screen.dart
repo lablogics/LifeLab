@@ -88,6 +88,7 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
                         boardId: _selectedBoard!.id,
                         onAddCard: () => _addCard(context, column),
                         onDeleteCard: (cardId) => _deleteCard(context, cardId),
+                        onMoveCard: (cardId, toColumnId) => _moveCard(cardId, toColumnId),
                       );
                     }).toList(),
                   ),
@@ -156,6 +157,12 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
     }
   }
 
+  void _moveCard(String cardId, String toColumnId) async {
+    final repo = ref.read(projectsRepositoryProvider);
+    await repo.updateCard(cardId, columnId: toColumnId);
+    _loadBoardDetail(_selectedBoard!.id);
+  }
+
   void _deleteCard(BuildContext context, String cardId) async {
     final repo = ref.read(projectsRepositoryProvider);
     await repo.deleteCard(cardId);
@@ -168,10 +175,12 @@ class _KanbanColumn extends StatelessWidget {
   final String boardId;
   final VoidCallback onAddCard;
   final void Function(String cardId) onDeleteCard;
+  final void Function(String cardId, String toColumnId)? onMoveCard;
 
   const _KanbanColumn({
     required this.column, required this.boardId,
     required this.onAddCard, required this.onDeleteCard,
+    this.onMoveCard,
   });
 
   @override
@@ -201,33 +210,72 @@ class _KanbanColumn extends StatelessWidget {
           ),
           const Divider(height: 1),
           Flexible(
-            child: column.cards.isEmpty
-                ? const Padding(padding: EdgeInsets.all(16), child: Center(child: Text('No cards')))
-                : ListView.builder(
+            child: DragTarget<Map<String, String>>(
+              onAcceptWithDetails: (details) {
+                final data = details.data;
+                if (data['fromColumnId'] != column.id) {
+                  onMoveCard?.call(data['cardId']!, column.id);
+                }
+              },
+              builder: (context, candidateData, rejectedData) {
+                final isTargeted = candidateData.isNotEmpty;
+                return Container(
+                  decoration: isTargeted ? BoxDecoration(
+                    border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2),
+                    borderRadius: BorderRadius.circular(8),
+                  ) : null,
+                  child: column.cards.isEmpty
+                      ? const Padding(padding: EdgeInsets.all(16), child: Center(child: Text('No cards')))
+                      : ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: column.cards.length,
                     itemBuilder: (context, index) {
                       final card = column.cards[index];
-                      return Dismissible(
+                      return LongPressDraggable<Map<String, String>>(
                         key: Key(card.id),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 12),
-                          child: const Icon(Icons.delete, color: Colors.red, size: 18),
+                        data: {'cardId': card.id, 'fromColumnId': column.id},
+                        feedback: Material(
+                          elevation: 4,
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 240,
+                            child: Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Text(card.title, style: theme.textTheme.bodyMedium),
+                              ),
+                            ),
+                          ),
                         ),
-                        onDismissed: (_) => onDeleteCard(card.id),
+                        childWhenDragging: Opacity(
+                          opacity: 0.3,
+                          child: Card(
+                            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Text(card.title, style: theme.textTheme.bodyMedium),
+                            ),
+                          ),
+                        ),
                         child: Card(
                           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           child: Padding(
                             padding: const EdgeInsets.all(12),
-                            child: Text(card.title, style: theme.textTheme.bodyMedium),
+                            child: Row(
+                              children: [
+                                Expanded(child: Text(card.title, style: theme.textTheme.bodyMedium)),
+                                IconButton(icon: const Icon(Icons.delete_outline, size: 16), onPressed: () => onDeleteCard(card.id), visualDensity: VisualDensity.compact),
+                              ],
+                            ),
                           ),
                         ),
                       );
                     },
                   ),
+                );
+              },
+            ),
           ),
         ],
       ),

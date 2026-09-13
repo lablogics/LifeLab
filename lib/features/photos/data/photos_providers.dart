@@ -72,6 +72,13 @@ class PhotosNotifier extends StateNotifier<PhotosState> {
     } catch (_) {}
   }
 
+  Future<void> toggleFavorite(String id) async {
+    try {
+      await _api.dio.dio.post('${Endpoints.photos}/$id/favorite');
+      state = state.copyWith(photos: state.photos.map((p) => p.id == id ? PhotoModel(id: p.id, name: p.name, mimeType: p.mimeType, size: p.size, takenAt: p.takenAt, starred: p.starred, favorite: !p.favorite, width: p.width, height: p.height, cameraModel: p.cameraModel, latitude: p.latitude, longitude: p.longitude) : p).toList());
+    } catch (_) {}
+  }
+
   Future<void> trashPhoto(String id) async {
     try {
       await _api.dio.dio.delete('${Endpoints.photos}/$id');

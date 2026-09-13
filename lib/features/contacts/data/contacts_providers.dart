@@ -49,6 +49,13 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
       await loadContacts();
     } catch (e) { state = state.copyWith(error: e.toString()); }
   }
+
+  Future<void> importContacts(String jsonData) async {
+    try {
+      await _api.dio.dio.post('${Endpoints.contacts}/import', data: {'data': jsonData});
+      await loadContacts();
+    } catch (e) { state = state.copyWith(error: e.toString()); }
+  }
 }
 
 final contactsProvider = StateNotifierProvider<ContactsNotifier, ContactsState>((ref) {

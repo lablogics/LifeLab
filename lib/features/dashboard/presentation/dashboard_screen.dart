@@ -5,6 +5,7 @@ import 'package:lifelab_core/api/api_client.dart';
 import 'package:lifelab_core/api/endpoints.dart';
 import 'package:lifelab_core/di/core_providers.dart';
 import '../../../app/command_palette.dart';
+import '../../notes/presentation/quick_notes_widget.dart';
 
 class DashboardStats {
   final int notes;
@@ -48,7 +49,7 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
         stats: DashboardStats(
           notes: (data['notes'] as Map<String, dynamic>?)?['total'] as int? ?? 0,
           notesToday: (data['notes'] as Map<String, dynamic>?)?['today'] as int?,
-          projects: 0,
+          projects: (data['projects'] as Map<String, dynamic>?)?['total'] as int? ?? 0,
           todos: (data['todos'] as Map<String, dynamic>?)?['total'] as int? ?? 0,
           todosToday: (data['todos'] as Map<String, dynamic>?)?['today'] as int?,
           todosOverdue: (data['todos'] as Map<String, dynamic>?)?['overdue'] as int?,
@@ -95,6 +96,7 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
+      floatingActionButton: const QuickNotesWidget(),
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -134,7 +136,7 @@ class DashboardScreen extends ConsumerWidget {
                   Row(
                     children: [
                       Expanded(child: _StatCard(
-                        title: 'Projects', count: 0, icon: Icons.work, color: Colors.purple,
+                        title: 'Projects', count: state.stats?.projects ?? 0, icon: Icons.work, color: Colors.purple,
                         onTap: () => context.go('/projects'),
                       )),
                       const SizedBox(width: 12),

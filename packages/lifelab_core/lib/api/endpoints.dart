@@ -41,4 +41,5 @@ class Endpoints {
   static const String versions = '/api/versions';
   static const String attachments = '/api/attachments';
   static const String notesWithTags = '/api/notes/with-tags';
+  static const String photosShares = '/api/photos/shares';
 }

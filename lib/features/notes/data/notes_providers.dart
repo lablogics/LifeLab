@@ -116,6 +116,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
       );
       await loadNotes();
       _sync?.enqueueCreate('note', note.id, {'title': note.title});
+      _sync?.sync();
       return note;
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -127,6 +128,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
     try {
       await _repository.trashNote(id);
       _sync?.enqueueDelete('note', id);
+      _sync?.sync();
       state = state.copyWith(
         notes: state.notes.where((n) => n.id != id).toList(),
       );
@@ -139,6 +141,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
     try {
       await _repository.updateNote(id, isPinned: isPinned);
       _sync?.enqueueUpdate('note', id, {'isPinned': isPinned});
+      _sync?.sync();
       state = state.copyWith(
         notes: state.notes.map((n) => n.id == id ? n.copyWith(isPinned: isPinned) : n).toList(),
       );

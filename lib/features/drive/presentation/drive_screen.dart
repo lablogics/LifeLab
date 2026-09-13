@@ -80,6 +80,8 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
                               itemBuilder: (_) => [
                                 if (!isFolder) const PopupMenuItem(value: 'open', child: Text('Open')),
                                 const PopupMenuItem(value: 'rename', child: Text('Rename')),
+                                const PopupMenuItem(value: 'star', child: Text('Star')),
+                                const PopupMenuItem(value: 'trash', child: Text('Move to Trash')),
                                 const PopupMenuItem(value: 'delete', child: Text('Delete')),
                               ],
                             ),
@@ -140,6 +142,12 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
             FilledButton(onPressed: () { ref.read(driveProvider.notifier).renameItem(item.id, ctrl.text.trim()); Navigator.pop(ctx); }, child: const Text('Save')),
           ],
         ));
+        break;
+      case 'star':
+        ref.read(driveProvider.notifier).starItem(item.id);
+        break;
+      case 'trash':
+        ref.read(driveProvider.notifier).trashItem(item.id);
         break;
       case 'delete':
         showDialog(context: context, builder: (ctx) => AlertDialog(

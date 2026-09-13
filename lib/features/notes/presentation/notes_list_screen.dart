@@ -13,6 +13,10 @@ class NotesListScreen extends ConsumerStatefulWidget {
 }
 
 class _NotesListScreenState extends ConsumerState<NotesListScreen> {
+  bool _showTrash = false;
+  List<NoteModel> _trashedNotes = [];
+  bool _loadingTrash = false;
+
   @override
   void initState() {
     super.initState();
@@ -50,6 +54,14 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen> {
               tooltip: 'Clear filter',
               onPressed: () => ref.read(notesProvider.notifier).selectFolder(null),
             ),
+          IconButton(
+            icon: Icon(_showTrash ? Icons.delete : Icons.delete_outline),
+            tooltip: _showTrash ? 'Back to notes' : 'Trash',
+            onPressed: () {
+              setState(() => _showTrash = !_showTrash);
+              if (_showTrash) _loadTrash();
+            },
+          ),
         ],
       ),
       body: Column(
@@ -100,52 +112,94 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen> {
           const SizedBox(height: 4),
           // Notes list
           Expanded(
-            child: notesState.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : notesState.error != null
-                    ? Center(child: Text('Error: ${notesState.error}'))
-                    : notesState.filteredNotes.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.note_add, size: 64, color: theme.colorScheme.outline),
-                                const SizedBox(height: 16),
-                                Text(
-                                  notesState.searchQuery.isNotEmpty
-                                      ? 'No notes match your search'
-                                      : 'No notes yet',
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: theme.colorScheme.outline,
-                                  ),
+            child: _showTrash
+                ? _buildTrashView(theme)
+                : notesState.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : notesState.error != null
+                        ? Center(child: Text('Error: ${notesState.error}'))
+                        : notesState.filteredNotes.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.note_add, size: 64, color: theme.colorScheme.outline),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      notesState.searchQuery.isNotEmpty
+                                          ? 'No notes match your search'
+                                          : 'No notes yet',
+                                      style: theme.textTheme.bodyLarge?.copyWith(
+                                        color: theme.colorScheme.outline,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          )
-                        : RefreshIndicator(
-                            onRefresh: () => ref.read(notesProvider.notifier).loadNotes(),
-                            child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              itemCount: notesState.filteredNotes.length,
-                              itemBuilder: (context, index) {
-                                final note = notesState.filteredNotes[index];
-                                return _NoteCard(
-                                  note: note,
-                                  onTap: () => context.push('/notes/${note.id}'),
-                                  onPinToggle: () => ref
-                                      .read(notesProvider.notifier)
-                                      .togglePin(note.id, !note.isPinned),
-                                  onTrash: () => _confirmTrash(context, note),
-                                );
-                              },
-                            ),
-                          ),
+                              )
+                            : RefreshIndicator(
+                                onRefresh: () => ref.read(notesProvider.notifier).loadNotes(),
+                                child: ListView.builder(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  itemCount: notesState.filteredNotes.length,
+                                  itemBuilder: (context, index) {
+                                    final note = notesState.filteredNotes[index];
+                                    return _NoteCard(
+                                      note: note,
+                                      onTap: () => context.push('/notes/${note.id}'),
+                                      onPinToggle: () => ref
+                                          .read(notesProvider.notifier)
+                                          .togglePin(note.id, !note.isPinned),
+                                      onTrash: () => _confirmTrash(context, note),
+                                      onDuplicate: () => _duplicateNote(note),
+                                    );
+                                  },
+                                ),
+                              ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _createNewNote(context),
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+
+  Widget _buildTrashView(ThemeData theme) {
+    if (_loadingTrash) return const Center(child: CircularProgressIndicator());
+    if (_trashedNotes.isEmpty) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.delete_outline, size: 64, color: theme.colorScheme.outline),
+          const SizedBox(height: 16),
+          Text('Trash is empty', style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.outline)),
+        ]),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _loadTrash,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _trashedNotes.length,
+        itemBuilder: (context, index) {
+          final note = _trashedNotes[index];
+          return Card(
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            child: ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: Text(note.title),
+              subtitle: Text(note.contentText.length > 60 ? '${note.contentText.substring(0, 60)}...' : note.contentText),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(icon: const Icon(Icons.restore), tooltip: 'Restore', onPressed: () => _confirmRestore(note)),
+                  IconButton(icon: const Icon(Icons.delete_forever), tooltip: 'Delete', onPressed: () => _confirmPermanentDelete(note), color: Colors.red),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -163,6 +217,112 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen> {
       return state.tags.firstWhere((t) => t.id == id).name;
     } catch (_) {
       return 'Tag';
+    }
+  }
+
+
+  Future<void> _loadTrash() async {
+    setState(() => _loadingTrash = true);
+    try {
+      final notes = await ref.read(notesRepositoryProvider).getTrashedNotes();
+      setState(() { _trashedNotes = notes; _loadingTrash = false; });
+    } catch (e) {
+      setState(() => _loadingTrash = false);
+    }
+  }
+
+  void _confirmRestore(NoteModel note) async {
+    await ref.read(notesRepositoryProvider).restoreNote(note.id);
+    _loadTrash();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('"${note.title}" restored')));
+    }
+  }
+
+  void _confirmPermanentDelete(NoteModel note) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Permanently?'),
+        content: Text('"${note.title}" will be permanently deleted. This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(notesRepositoryProvider).permanentDeleteNote(note.id);
+      _loadTrash();
+    }
+  }
+
+  String _buildTipTapJson(String plainText) {
+    if (plainText.isEmpty) return '{"type":"doc","content":[]}';
+    final lines = plainText.split('\n');
+    final content = <Map<String, dynamic>>[];
+    for (final line in lines) {
+      if (line.startsWith('### ')) {
+        content.add({'type': 'heading', 'attrs': {'level': 3}, 'content': [if (line.substring(4).isNotEmpty) {'type': 'text', 'text': line.substring(4)}]});
+      } else if (line.startsWith('## ')) {
+        content.add({'type': 'heading', 'attrs': {'level': 2}, 'content': [if (line.substring(3).isNotEmpty) {'type': 'text', 'text': line.substring(3)}]});
+      } else if (line.startsWith('# ')) {
+        content.add({'type': 'heading', 'attrs': {'level': 1}, 'content': [if (line.substring(2).isNotEmpty) {'type': 'text', 'text': line.substring(2)}]});
+      } else if (line.startsWith('- [ ] ')) {
+        content.add({'type': 'taskItem', 'attrs': {'checked': false}, 'content': [if (line.substring(6).isNotEmpty) {'type': 'text', 'text': line.substring(6)}]});
+      } else if (line.isEmpty) {
+        content.add({'type': 'paragraph', 'content': []});
+      } else {
+        content.add({'type': 'paragraph', 'content': [{'type': 'text', 'text': line}]});
+      }
+    }
+    return '{"type":"doc","content":$content}';
+  }
+
+  void _showImportMarkdown() async {
+    // Import markdown from clipboard or text input
+    final controller = TextEditingController();
+    final markdown = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Import Markdown'),
+        content: TextField(
+          controller: controller,
+          maxLines: 10,
+          decoration: const InputDecoration(hintText: 'Paste markdown content here...', border: OutlineInputBorder()),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text), child: const Text('Import')),
+        ],
+      ),
+    );
+    if (markdown != null && markdown.trim().isNotEmpty) {
+      final lines = markdown.trim().split('\n');
+      final title = lines.isNotEmpty && lines[0].startsWith('# ')
+          ? lines[0].substring(2)
+          : 'Imported Note';
+      final note = await ref.read(notesProvider.notifier).createNote(title: title);
+      if (note != null) {
+        final contentJson = _buildTipTapJson(markdown.trim());
+        await ref.read(notesRepositoryProvider).updateNote(note.id, contentJson: contentJson);
+        if (mounted) context.push('/notes/${note.id}');
+      }
+    }
+  }
+
+  void _duplicateNote(NoteModel note) async {
+    try {
+      final dup = await ref.read(notesRepositoryProvider).duplicateNote(note.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Duplicated as "${dup.title}"')));
+        ref.read(notesProvider.notifier).loadNotes();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to duplicate: $e')));
+      }
     }
   }
 
@@ -507,12 +667,14 @@ class _NoteCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onPinToggle;
   final VoidCallback onTrash;
+  final VoidCallback? onDuplicate;
 
   const _NoteCard({
     required this.note,
     required this.onTap,
     required this.onPinToggle,
     required this.onTrash,
+    this.onDuplicate,
   });
 
   @override
@@ -580,6 +742,13 @@ class _NoteCard extends StatelessWidget {
                     tooltip: note.isPinned ? 'Unpin' : 'Pin',
                   ),
                   const Spacer(),
+                  if (onDuplicate != null)
+                    IconButton(
+                      icon: const Icon(Icons.copy, size: 18),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: onDuplicate,
+                      tooltip: 'Duplicate',
+                    ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline, size: 18),
                     visualDensity: VisualDensity.compact,
