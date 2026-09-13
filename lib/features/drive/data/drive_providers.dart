@@ -19,9 +19,10 @@ class DriveItem {
 class DriveState {
   final List<DriveItem> items; final List<String> path; final List<String> pathNames;
   final bool isLoading; final String? error; final bool uploading;
-  const DriveState({this.items = const [], this.path = const [], this.pathNames = const [], this.isLoading = false, this.error, this.uploading = false});
-  DriveState copyWith({List<DriveItem>? items, List<String>? path, List<String>? pathNames, bool? isLoading, String? error, bool? uploading}) =>
-    DriveState(items: items ?? this.items, path: path ?? this.path, pathNames: pathNames ?? this.pathNames, isLoading: isLoading ?? this.isLoading, error: error, uploading: uploading ?? this.uploading);
+  final bool starred; final bool trashed;
+  const DriveState({this.items = const [], this.path = const [], this.pathNames = const [], this.isLoading = false, this.error, this.uploading = false, this.starred = false, this.trashed = false});
+  DriveState copyWith({List<DriveItem>? items, List<String>? path, List<String>? pathNames, bool? isLoading, String? error, bool? uploading, bool? starred, bool? trashed}) =>
+    DriveState(items: items ?? this.items, path: path ?? this.path, pathNames: pathNames ?? this.pathNames, isLoading: isLoading ?? this.isLoading, error: error, uploading: uploading ?? this.uploading, starred: starred ?? this.starred, trashed: trashed ?? this.trashed);
 }
 
 class DriveNotifier extends StateNotifier<DriveState> {
@@ -105,7 +106,10 @@ class DriveNotifier extends StateNotifier<DriveState> {
       await _api.dio.dio.put('${Endpoints.drive}/$id', data: {'parentId': newParentId});
       loadFolder(state.path.isEmpty ? null : state.path.last, '');
     } catch (e) { state = state.copyWith(error: e.toString()); }
-  }}
+  }
+
+  void setStarredView(bool starred) { state = state.copyWith(starred: starred, trashed: false); }
+  void setTrashView(bool trashed) { state = state.copyWith(trashed: trashed, starred: false); }
+}
 
 final driveProvider = StateNotifierProvider<DriveNotifier, DriveState>((ref) => DriveNotifier(ref.watch(apiClientProvider)));
-

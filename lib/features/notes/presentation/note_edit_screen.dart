@@ -156,7 +156,27 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
     }
   }
 
-  @override
+  
+  void _insertWikilink() async {
+    final controller = TextEditingController();
+    final noteName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Insert [[Wikilink]]'),
+        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(labelText: 'Note name', hintText: 'e.g. My Note')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Insert')),
+        ],
+      ),
+    );
+    if (noteName != null && noteName.isNotEmpty) {
+      final pos = _contentController.selection.base.offset;
+      final insert = '[[$noteName]]';
+      _contentController.text = _contentController.text.replaceRange(pos, pos, insert);
+      setState(() => _hasChanges = true);
+    }
+  }
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
@@ -207,6 +227,7 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
             ),
           ),
           actions: [
+            IconButton(icon: const Icon(Icons.link), tooltip: 'Insert [[wikilink]]', onPressed: _insertWikilink),
             IconButton(
               icon: const Icon(Icons.save),
               tooltip: 'Save',

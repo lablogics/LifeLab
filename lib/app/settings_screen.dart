@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lifelab_core/api/endpoints.dart';
 import 'package:lifelab_core/di/core_providers.dart';
 import 'package:go_router/go_router.dart';
+import 'package:local_auth/local_auth.dart';
 
 class SessionModel {
   final String id; final String? userAgent; final bool isCurrent; final int? expiresAt;
@@ -23,13 +24,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   List<SessionModel> _sessions = [];
   bool _loadingSessions = false;
   bool _twoFaEnabled = false;
+  bool _biometricEnabled = false;
+  final _localAuth = LocalAuthentication();
 
   @override
   void initState() {
     super.initState();
     _load2FaStatus();
+    _checkBiometric();
   }
 
+  Future<void> _checkBiometric() async {
+    try {
+      final available = await _localAuth.canCheckBiometrics;
+      final deviceSupported = await _localAuth.isDeviceSupported();
+      if (mounted) setState(() => _biometricEnabled = available && deviceSupported);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleBiometric() async {
+    if (_biometricEnabled) {
+      try {
+        final authenticated = await _localAuth.authenticate(
+          localizedReason: 'Unlock LifeLab',
+          options: const AuthenticationOptions(biometricOnly: true),
+        );
+        if (mounted) setState(() => _biometricEnabled = authenticated);
+      } catch (_) {}
+    }
+  }
   Future<void> _load2FaStatus() async {
     try {
       final r = await ref.read(apiClientProvider).dio.dio.get(Endpoints.twoFaStatus);
@@ -63,6 +86,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         const SizedBox(height: 32),
         const Divider(),
         // Security section
+        ListTile(leading: const Icon(Icons.fingerprint), title: const Text('Biometric Unlock'), subtitle: Text(_biometricEnabled ? 'Enabled' : 'Not available'), trailing: Switch(value: _biometricEnabled, onChanged: (_) => _toggleBiometric())),
         ListTile(leading: const Icon(Icons.lock), title: const Text('Change Password'), onTap: _changePassword),
         ListTile(leading: const Icon(Icons.security), title: const Text('Two-Factor Auth'), subtitle: Text(_twoFaEnabled ? 'Enabled' : 'Disabled'),
           trailing: Switch(value: _twoFaEnabled, onChanged: (_) => _toggle2FA())),
@@ -191,6 +215,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       } catch (_) {}
     }
     _load2FaStatus();
+    _checkBiometric();
   }
 
   void _showSessionsDialog() {

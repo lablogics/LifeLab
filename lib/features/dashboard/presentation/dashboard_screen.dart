@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lifelab_core/api/api_client.dart';
 import 'package:lifelab_core/api/endpoints.dart';
 import 'package:lifelab_core/di/core_providers.dart';
+import '../../../app/command_palette.dart';
 
 class DashboardStats {
   final int notes;
@@ -78,6 +79,9 @@ class DashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.terminal), tooltip: 'Command Palette', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CommandPalette())),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.read(dashboardProvider.notifier).loadStats(),
@@ -154,6 +158,30 @@ class DashboardScreen extends ConsumerWidget {
                       )),
                     ],
                   ),
+                  const SizedBox(height: 24),
+                  Text('Quick Actions', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _QuickAction(Icons.note_add, 'New Note', Colors.blue, () => context.go('/notes')),
+                      const SizedBox(width: 8),
+                      _QuickAction(Icons.add_task, 'New Todo', Colors.green, () => context.go('/todos')),
+                      const SizedBox(width: 8),
+                      _QuickAction(Icons.camera_alt, 'Photo', Colors.purple, () => context.go('/photos')),
+                      const SizedBox(width: 8),
+                      _QuickAction(Icons.upload_file, 'Upload', Colors.orange, () => context.go('/drive')),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Text('Recent Activity', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Card(
+                    child: ListTile(
+                      leading: Icon(Icons.info_outline, color: theme.colorScheme.outline),
+                      title: const Text('Pull to refresh for latest data'),
+                      subtitle: Text('${state.stats?.notes ?? 0} notes, ${state.stats?.todos ?? 0} todos'),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -195,6 +223,35 @@ class _StatCard extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(subtitle!, style: theme.textTheme.labelSmall?.copyWith(color: color)),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  const _QuickAction(this.icon, this.label, this.color, this.onTap);
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 28),
+              const SizedBox(height: 4),
+              Text(label, style: Theme.of(context).textTheme.labelSmall),
             ],
           ),
         ),

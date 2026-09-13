@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../data/notes_providers.dart';
 import '../data/models/note_model.dart';
+import '../data/note_templates.dart';
 
 class NotesListScreen extends ConsumerStatefulWidget {
   const NotesListScreen({super.key});
@@ -166,9 +167,79 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen> {
   }
 
   void _createNewNote(BuildContext context) async {
-    final note = await ref.read(notesProvider.notifier).createNote();
+    final template = await _showTemplatePicker(context);
+    if (template == null) return;
+    final note = await ref.read(notesProvider.notifier).createNote(
+      title: template.title.isEmpty ? 'Untitled' : template.title,
+    );
+    if (note != null && template.content.isNotEmpty) {
+      // Update with template content
+      await ref.read(notesRepositoryProvider).updateNote(
+        note.id,
+        contentJson: _buildTemplateJson(template.content),
+  
+      );
+    }
     if (note != null && context.mounted) {
       context.push('/notes/${note.id}');
+    }
+  }
+
+  String _buildTemplateJson(String plainText) {
+    if (plainText.isEmpty) return '{"type":"doc","content":[]}';
+    final lines = plainText.split('\n');
+    final content = <Map<String, dynamic>>[];
+    for (final line in lines) {
+      if (line.startsWith('### ')) {
+        content.add({'type': 'heading', 'attrs': {'level': 3}, 'content': [if (line.substring(4).isNotEmpty) {'type': 'text', 'text': line.substring(4)}]});
+      } else if (line.startsWith('## ')) {
+        content.add({'type': 'heading', 'attrs': {'level': 2}, 'content': [if (line.substring(3).isNotEmpty) {'type': 'text', 'text': line.substring(3)}]});
+      } else if (line.startsWith('# ')) {
+        content.add({'type': 'heading', 'attrs': {'level': 1}, 'content': [if (line.substring(2).isNotEmpty) {'type': 'text', 'text': line.substring(2)}]});
+      } else if (line.startsWith('- [ ] ')) {
+        content.add({'type': 'taskItem', 'attrs': {'checked': false}, 'content': [if (line.substring(6).isNotEmpty) {'type': 'text', 'text': line.substring(6)}]});
+      } else if (line.isEmpty) {
+        content.add({'type': 'paragraph', 'content': []});
+      } else {
+        content.add({'type': 'paragraph', 'content': [{'type': 'text', 'text': line}]});
+      }
+    }
+    return '{"type":"doc","content":$content}';
+  }
+
+  Future<NoteTemplate?> _showTemplatePicker(BuildContext context) async {
+    return showModalBottomSheet<NoteTemplate>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Choose a Template', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            ...noteTemplates.map((t) => ListTile(
+              leading: Icon(_iconForTemplate(t.id)),
+              title: Text(t.name),
+              subtitle: t.content.isNotEmpty
+                  ? Text(t.content.split('\n').where((l) => l.isNotEmpty && !l.startsWith('#')).take(1).join(), maxLines: 1, overflow: TextOverflow.ellipsis)
+                  : const Text('Empty note'),
+              onTap: () => Navigator.pop(ctx, t),
+            )),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _iconForTemplate(String id) {
+    switch (id) {
+      case 'daily': return Icons.today;
+      case 'meeting': return Icons.groups;
+      case 'project': return Icons.work;
+      case 'idea': return Icons.lightbulb;
+      default: return Icons.note_add;
     }
   }
 

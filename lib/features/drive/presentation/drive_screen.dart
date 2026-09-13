@@ -45,6 +45,8 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
           IconButton(icon: const Icon(Icons.refresh), onPressed: () => ref.read(driveProvider.notifier).refresh()),
           IconButton(icon: const Icon(Icons.create_new_folder_outlined), onPressed: _showCreateFolderDialog),
           IconButton(icon: const Icon(Icons.upload_file), onPressed: _pickAndUpload),
+          IconButton(icon: Icon(drive.starred ? Icons.star : Icons.star_border), tooltip: 'Starred', onPressed: () => ref.read(driveProvider.notifier).setStarredView(!drive.starred)),
+          IconButton(icon: Icon(drive.trashed ? Icons.delete : Icons.delete_outline), tooltip: 'Trash', onPressed: () => ref.read(driveProvider.notifier).setTrashView(!drive.trashed)),
         ],
       ),
       body: _selectedStorageId == null

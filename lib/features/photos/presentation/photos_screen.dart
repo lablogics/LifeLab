@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../data/photos_providers.dart';
+import 'photo_share_dialog.dart';
 
 class PhotosScreen extends ConsumerStatefulWidget {
   const PhotosScreen({super.key});
@@ -120,6 +121,7 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
       const SizedBox(height: 16),
       Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
         IconButton(icon: Icon(photo.starred ? Icons.star : Icons.star_border), onPressed: () { ref.read(photosProvider.notifier).toggleStar(photo.id); Navigator.pop(ctx); }),
+        IconButton(icon: const Icon(Icons.share), onPressed: () { showDialog(context: context, builder: (_) => PhotoShareDialog(photoId: photo.id, photoName: photo.name)); }),
         IconButton(icon: const Icon(Icons.delete_outline), onPressed: () { ref.read(photosProvider.notifier).trashPhoto(photo.id); Navigator.pop(ctx); }),
         if (photo.trashed) IconButton(icon: const Icon(Icons.restore), onPressed: () { ref.read(photosProvider.notifier).restorePhoto(photo.id); Navigator.pop(ctx); }),
       ]),

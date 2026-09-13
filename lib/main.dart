@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'app/router.dart';
+import 'package:app_links/app_links.dart';
 
 final FlutterLocalNotificationsPlugin localNotifications = FlutterLocalNotificationsPlugin();
 
@@ -23,6 +24,23 @@ void _notificationTapHandler(NotificationResponse response) {
   }
 }
 
+final _appLinks = AppLinks();
+
+Future<void> _initDeepLinks() async {
+  // Handle initial deep link
+  try {
+    final initialUri = await _appLinks.getInitialLink();
+    if (initialUri != null) {
+      debugPrint('Initial deep link: $initialUri');
+    }
+  } catch (_) {}
+
+  // Handle subsequent deep links
+  _appLinks.uriLinkStream.listen((uri) {
+    debugPrint('Deep link received: $uri');
+    // Navigation handled by GoRouter
+  });
+}
 Future<void> _initLocalNotifications() async {
   const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
   const initSettings = InitializationSettings(android: androidSettings);
@@ -42,6 +60,8 @@ Future<void> main() async {
   try {
     await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    // Deep link handling
+    _initDeepLinks();
     await _initLocalNotifications();
   } catch (_) {
     // Firebase not configured — app works without push
