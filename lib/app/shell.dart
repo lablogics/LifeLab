@@ -1,14 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../core/sync/sync_providers.dart';
 
-class AppShell extends StatelessWidget {
+class AppShell extends ConsumerWidget {
   final Widget child;
   const AppShell({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final syncState = ref.watch(syncStateProvider);
+    final theme = Theme.of(context);
+
     return Scaffold(
-      body: child,
+      body: Column(
+        children: [
+          if (syncState.pendingCount > 0 || syncState.isSyncing)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              color: syncState.isSyncing
+                  ? theme.colorScheme.primaryContainer
+                  : theme.colorScheme.tertiaryContainer,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 14, height: 14,
+                    child: syncState.isSyncing
+                        ? const CircularProgressIndicator(strokeWidth: 2)
+                        : Icon(Icons.cloud_off, size: 14, color: theme.colorScheme.tertiary),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      syncState.isSyncing
+                          ? 'Syncing changes...'
+                          : '${syncState.pendingCount} pending change${syncState.pendingCount == 1 ? "" : "s"}',
+                      style: theme.textTheme.labelSmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(child: child),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _calculateSelectedIndex(context),
         onTap: (index) => _onItemTapped(index, context),

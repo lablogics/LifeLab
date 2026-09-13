@@ -1,3 +1,5 @@
+import '../../../core/sync/sync_providers.dart';
+import '../../../core/sync/sync_engine.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lifelab_core/di/core_providers.dart';
 import 'projects_remote_datasource.dart';
@@ -27,8 +29,9 @@ class ProjectsState {
 }
 
 class ProjectsNotifier extends StateNotifier<ProjectsState> {
+  final SyncEngine? _sync;
   final ProjectsRepository _repo;
-  ProjectsNotifier(this._repo) : super(const ProjectsState());
+  ProjectsNotifier(this._repo, [this._sync]) : super(const ProjectsState());
 
   Future<void> loadProjects() async {
     state = state.copyWith(isLoading: true);
@@ -43,6 +46,7 @@ class ProjectsNotifier extends StateNotifier<ProjectsState> {
   Future<void> createProject(String name, {String? description}) async {
     try {
       await _repo.createProject(name, description: description);
+      _sync?.enqueueCreate('project', name, {'name': name, 'description': description ?? ''});
       await loadProjects();
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -52,6 +56,7 @@ class ProjectsNotifier extends StateNotifier<ProjectsState> {
   Future<void> deleteProject(String id) async {
     try {
       await _repo.deleteProject(id);
+      _sync?.enqueueDelete('project', id);
       state = state.copyWith(projects: state.projects.where((p) => p.id != id).toList());
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -60,5 +65,5 @@ class ProjectsNotifier extends StateNotifier<ProjectsState> {
 }
 
 final projectsProvider = StateNotifierProvider<ProjectsNotifier, ProjectsState>((ref) {
-  return ProjectsNotifier(ref.watch(projectsRepositoryProvider));
+  return ProjectsNotifier(ref.watch(projectsRepositoryProvider), ref.watch(syncEngineProvider));
 });

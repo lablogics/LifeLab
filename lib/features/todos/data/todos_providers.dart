@@ -1,3 +1,5 @@
+import '../../../core/sync/sync_providers.dart';
+import '../../../core/sync/sync_engine.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lifelab_core/di/core_providers.dart';
 import 'todos_remote_datasource.dart';
@@ -54,8 +56,9 @@ class TodosState {
 }
 
 class TodosNotifier extends StateNotifier<TodosState> {
+  final SyncEngine? _sync;
   final TodosRepository _repository;
-  TodosNotifier(this._repository) : super(const TodosState());
+  TodosNotifier(this._repository, [this._sync]) : super(const TodosState());
 
   Future<void> loadTodos() async {
     state = state.copyWith(isLoading: true);
@@ -79,6 +82,7 @@ class TodosNotifier extends StateNotifier<TodosState> {
         priority: priority,
       );
       state = state.copyWith(todos: [todo, ...state.todos]);
+      _sync?.enqueueCreate('todo', todo.id, {'title': todo.title});
       return todo;
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -89,6 +93,7 @@ class TodosNotifier extends StateNotifier<TodosState> {
   Future<void> toggleTodo(String id) async {
     try {
       await _repository.toggleTodo(id);
+      _sync?.enqueueUpdate('todo', id, {'completed': true});
       state = state.copyWith(
         todos: state.todos.map((t) {
           if (t.id == id) return t.copyWith(completed: !t.completed);
@@ -103,6 +108,7 @@ class TodosNotifier extends StateNotifier<TodosState> {
   Future<void> deleteTodo(String id) async {
     try {
       await _repository.deleteTodo(id);
+      _sync?.enqueueDelete('todo', id);
       state = state.copyWith(
         todos: state.todos.where((t) => t.id != id).toList(),
       );
@@ -114,6 +120,7 @@ class TodosNotifier extends StateNotifier<TodosState> {
   Future<void> updateTodo(String id, {String? title, String? dueDate, String? priority}) async {
     try {
       await _repository.updateTodo(id, title: title, dueDate: dueDate, priority: priority);
+      _sync?.enqueueUpdate('todo', id, {'title': title ?? '', 'dueDate': dueDate ?? '', 'priority': priority ?? ''});
       await loadTodos();
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -122,5 +129,5 @@ class TodosNotifier extends StateNotifier<TodosState> {
 }
 
 final todosProvider = StateNotifierProvider<TodosNotifier, TodosState>((ref) {
-  return TodosNotifier(ref.watch(todosRepositoryProvider));
+  return TodosNotifier(ref.watch(todosRepositoryProvider), ref.watch(syncEngineProvider));
 });

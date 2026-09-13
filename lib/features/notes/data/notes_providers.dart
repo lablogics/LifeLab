@@ -1,3 +1,5 @@
+import '../../../core/sync/sync_providers.dart';
+import '../../../core/sync/sync_engine.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lifelab_core/di/core_providers.dart';
 import 'notes_remote_datasource.dart';
@@ -69,8 +71,9 @@ class NotesState {
 }
 
 class NotesNotifier extends StateNotifier<NotesState> {
+  final SyncEngine? _sync;
   final NotesRepository _repository;
-  NotesNotifier(this._repository) : super(const NotesState());
+  NotesNotifier(this._repository, [this._sync]) : super(const NotesState());
 
   Future<void> loadNotes() async {
     state = state.copyWith(isLoading: true);
@@ -112,6 +115,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
         folderId: folderId ?? state.selectedFolderId,
       );
       await loadNotes();
+      _sync?.enqueueCreate('note', note.id, {'title': note.title});
       return note;
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -122,6 +126,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
   Future<void> trashNote(String id) async {
     try {
       await _repository.trashNote(id);
+      _sync?.enqueueDelete('note', id);
       state = state.copyWith(
         notes: state.notes.where((n) => n.id != id).toList(),
       );
@@ -133,6 +138,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
   Future<void> togglePin(String id, bool isPinned) async {
     try {
       await _repository.updateNote(id, isPinned: isPinned);
+      _sync?.enqueueUpdate('note', id, {'isPinned': isPinned});
       state = state.copyWith(
         notes: state.notes.map((n) => n.id == id ? n.copyWith(isPinned: isPinned) : n).toList(),
       );
@@ -143,7 +149,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
 }
 
 final notesProvider = StateNotifierProvider<NotesNotifier, NotesState>((ref) {
-  return NotesNotifier(ref.watch(notesRepositoryProvider));
+  return NotesNotifier(ref.watch(notesRepositoryProvider), ref.watch(syncEngineProvider));
 });
 
 // ── Folders state ──
