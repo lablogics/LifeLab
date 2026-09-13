@@ -32,6 +32,8 @@ import '../features/graph/presentation/graph_screen.dart';
 import '../features/activity/presentation/activity_screen.dart';
 import '../features/versions/presentation/versions_screen.dart';
 import '../features/attachments/presentation/attachments_screen.dart';
+import '../features/albums/presentation/albums_screen.dart';
+import '../features/faces/presentation/faces_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authProvider);
@@ -74,6 +76,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/contacts/:id/messages', builder: (context, state) => MessagesScreen(contactId: state.pathParameters['id']!, contactName: state.pathParameters['id']!)),
           GoRoute(path: '/totp', builder: (context, state) => const TotpScreen()),
           GoRoute(path: '/photos', builder: (context, state) => const PhotosScreen()),
+          GoRoute(path: '/photos/albums', builder: (context, state) => const AlbumsScreen()),
+          GoRoute(path: '/photos/faces', builder: (context, state) => const FacesScreen()),
           GoRoute(path: '/videos', builder: (context, state) => const VideosScreen()),
           GoRoute(path: '/drive', builder: (context, state) => const DriveScreen()),
           GoRoute(path: '/tags', builder: (context, state) => const TagsScreen()),

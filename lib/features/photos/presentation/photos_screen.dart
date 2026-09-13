@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:go_router/go_router.dart';
 import '../data/photos_providers.dart';
 
 class PhotosScreen extends ConsumerStatefulWidget {
@@ -10,10 +12,26 @@ class PhotosScreen extends ConsumerStatefulWidget {
 
 class _PhotosScreenState extends ConsumerState<PhotosScreen> {
   String? _selectedStorageId;
-  bool _loaded = false;
+
+  final _picker = ImagePicker();
 
   @override
-  void initState() { super.initState(); Future.microtask(() { ref.read(photosProvider.notifier).loadPhotos(); setState(() => _loaded = true); }); }
+  void initState() { super.initState(); Future.microtask(() => ref.read(photosProvider.notifier).loadPhotos()); }
+
+  Future<void> _pickAndUpload(ImageSource source) async {
+    final image = await _picker.pickImage(source: source, imageQuality: 85);
+    if (image == null) return;
+    if (!mounted) return;
+    ref.read(photosProvider.notifier).uploadPhoto(image.path, storageId: _selectedStorageId);
+  }
+
+  void _showUploadOptions() {
+    showModalBottomSheet(context: context, builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      const Padding(padding: EdgeInsets.all(16), child: Text('Upload Photo', style: TextStyle(fontWeight: FontWeight.bold))),
+      ListTile(leading: const Icon(Icons.camera_alt), title: const Text('Camera'), onTap: () { Navigator.pop(ctx); _pickAndUpload(ImageSource.camera); }),
+      ListTile(leading: const Icon(Icons.photo_library), title: const Text('Gallery'), onTap: () { Navigator.pop(ctx); _pickAndUpload(ImageSource.gallery); }),
+    ])));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,12 +44,12 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
       appBar: AppBar(
         title: const Text('Photos'),
         actions: [
+          if (photos.uploading) const Padding(padding: EdgeInsets.only(right: 8), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
           IconButton(icon: const Icon(Icons.refresh), onPressed: () => ref.read(photosProvider.notifier).refresh()),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(96),
           child: Column(children: [
-            // View tabs
             SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
               _viewChip('All', PhotosView.all, photos.view),
               _viewChip('Starred', PhotosView.starred, photos.view),
@@ -39,12 +57,10 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
               _viewChip('Trash', PhotosView.trash, photos.view),
             ])),
             const SizedBox(height: 4),
-            // Search
             Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: TextField(
               decoration: const InputDecoration(hintText: 'Search photos...', prefixIcon: Icon(Icons.search), isDense: true, border: OutlineInputBorder()),
               onChanged: (v) => ref.read(photosProvider.notifier).searchPhotos(v),
             )),
-            // Storage selector
             if (storages.storages.isNotEmpty)
               Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: DropdownButtonFormField<String>(
                 value: _selectedStorageId, decoration: const InputDecoration(labelText: 'Storage', isDense: true, border: OutlineInputBorder()),
@@ -54,6 +70,7 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
           ]),
         ),
       ),
+      floatingActionButton: FloatingActionButton(onPressed: _showUploadOptions, child: const Icon(Icons.add_a_photo)),
       body: photos.isLoading
           ? const Center(child: CircularProgressIndicator())
           : items.isEmpty
@@ -105,6 +122,7 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
       Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
         IconButton(icon: Icon(photo.starred ? Icons.star : Icons.star_border), onPressed: () { ref.read(photosProvider.notifier).toggleStar(photo.id); Navigator.pop(ctx); }),
         IconButton(icon: const Icon(Icons.delete_outline), onPressed: () { ref.read(photosProvider.notifier).trashPhoto(photo.id); Navigator.pop(ctx); }),
+        if (photo.trashed) IconButton(icon: const Icon(Icons.restore), onPressed: () { ref.read(photosProvider.notifier).restorePhoto(photo.id); Navigator.pop(ctx); }),
       ]),
     ])));
   }

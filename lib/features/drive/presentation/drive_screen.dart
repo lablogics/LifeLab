@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../data/drive_providers.dart';
 import '../../photos/data/photos_providers.dart';
 
@@ -19,6 +21,15 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
+  Future<void> _pickAndUpload() async {
+    final result = await FilePicker.platform.pickFiles();
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    if (file.path == null) return;
+    if (!mounted) return;
+    ref.read(driveProvider.notifier).uploadFile(file.path!);
+  }
+
   @override
   Widget build(BuildContext context) {
     final storages = ref.watch(storagesProvider);
@@ -30,11 +41,12 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
         title: Text(drive.pathNames.isEmpty ? 'Drive' : drive.pathNames.join(' / ')),
         leading: drive.path.isNotEmpty ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => ref.read(driveProvider.notifier).goBack()) : null,
         actions: [
+          if (drive.uploading) const Padding(padding: EdgeInsets.only(right: 8), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
           IconButton(icon: const Icon(Icons.refresh), onPressed: () => ref.read(driveProvider.notifier).refresh()),
           IconButton(icon: const Icon(Icons.create_new_folder_outlined), onPressed: _showCreateFolderDialog),
+          IconButton(icon: const Icon(Icons.upload_file), onPressed: _pickAndUpload),
         ],
       ),
-      floatingActionButton: FloatingActionButton(onPressed: () => _showItemActions(null), child: const Icon(Icons.add)),
       body: _selectedStorageId == null
           ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               Icon(Icons.folder_open, size: 64, color: theme.colorScheme.outline),
@@ -59,16 +71,17 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
                           final isFolder = item.type == 'folder';
                           return ListTile(
                             leading: Icon(isFolder ? Icons.folder : _iconForFile(item.name), color: isFolder ? Colors.amber : theme.colorScheme.outline),
-                            title: Text(item.name),
+                            title: Text(item.name, semanticsLabel: 'File ${item.name}'),
                             subtitle: Text(isFolder ? 'Folder' : _formatSize(item.size)),
                             trailing: PopupMenuButton<String>(
                               onSelected: (v) => _handleItemAction(v, item),
                               itemBuilder: (_) => [
+                                if (!isFolder) const PopupMenuItem(value: 'open', child: Text('Open')),
                                 const PopupMenuItem(value: 'rename', child: Text('Rename')),
                                 const PopupMenuItem(value: 'delete', child: Text('Delete')),
                               ],
                             ),
-                            onTap: isFolder ? () => ref.read(driveProvider.notifier).loadFolder(item.id, item.name) : null,
+                            onTap: isFolder ? () => ref.read(driveProvider.notifier).loadFolder(item.id, item.name) : () => _openFile(item),
                           );
                         },
                       ),
@@ -89,6 +102,15 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     }
   }
 
+  Future<void> _openFile(DriveItem item) async {
+    final url = await ref.read(driveProvider.notifier).getDownloadUrl(item.id);
+    if (url != null && mounted) {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open file')));
+    }
+  }
+
   void _showCreateFolderDialog() {
     final ctrl = TextEditingController();
     showDialog(context: context, builder: (ctx) => AlertDialog(
@@ -103,6 +125,9 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
 
   void _handleItemAction(String action, DriveItem item) {
     switch (action) {
+      case 'open':
+        _openFile(item);
+        break;
       case 'rename':
         final ctrl = TextEditingController(text: item.name);
         showDialog(context: context, builder: (ctx) => AlertDialog(
@@ -126,6 +151,4 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
         break;
     }
   }
-
-  void _showItemActions(DriveItem? item) {}
 }

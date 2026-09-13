@@ -1,7 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lifelab_core/api/api_client.dart';
 import 'package:lifelab_core/api/endpoints.dart';
 import 'package:lifelab_core/di/core_providers.dart';
+import 'dart:io';
 
 class PhotoModel {
   final String id; final String name; final String? mimeType; final int? size;
@@ -25,10 +27,10 @@ enum PhotosView { all, starred, favorites, trash }
 
 class PhotosState {
   final List<PhotoModel> photos; final bool isLoading; final String? error;
-  final PhotosView view; final String searchQuery;
-  const PhotosState({this.photos = const [], this.isLoading = false, this.error, this.view = PhotosView.all, this.searchQuery = ''});
-  PhotosState copyWith({List<PhotoModel>? photos, bool? isLoading, String? error, PhotosView? view, String? searchQuery}) =>
-    PhotosState(photos: photos ?? this.photos, isLoading: isLoading ?? this.isLoading, error: error, view: view ?? this.view, searchQuery: searchQuery ?? this.searchQuery);
+  final PhotosView view; final String searchQuery; final bool uploading;
+  const PhotosState({this.photos = const [], this.isLoading = false, this.error, this.view = PhotosView.all, this.searchQuery = '', this.uploading = false});
+  PhotosState copyWith({List<PhotoModel>? photos, bool? isLoading, String? error, PhotosView? view, String? searchQuery, bool? uploading}) =>
+    PhotosState(photos: photos ?? this.photos, isLoading: isLoading ?? this.isLoading, error: error, view: view ?? this.view, searchQuery: searchQuery ?? this.searchQuery, uploading: uploading ?? this.uploading);
   List<PhotoModel> get filtered => searchQuery.isEmpty ? photos : photos.where((p) => p.name.toLowerCase().contains(searchQuery.toLowerCase())).toList();
 }
 
@@ -74,6 +76,29 @@ class PhotosNotifier extends StateNotifier<PhotosState> {
     try {
       await _api.dio.dio.delete('${Endpoints.photos}/$id');
       state = state.copyWith(photos: state.photos.where((p) => p.id != id).toList());
+    } catch (_) {}
+  }
+
+  Future<void> uploadPhoto(String filePath, {String? storageId}) async {
+    state = state.copyWith(uploading: true);
+    try {
+      final file = File(filePath);
+      final formData = {
+        'file': await file.length().then((len) => MultipartFile.fromFile(filePath, filename: file.path.split('/').last)),
+        if (storageId != null) 'storageId': storageId,
+      };
+      await _api.dio.dio.post(Endpoints.photos, data: formData);
+      state = state.copyWith(uploading: false);
+      loadPhotos();
+    } catch (e) {
+      state = state.copyWith(uploading: false, error: e.toString());
+    }
+  }
+
+  Future<void> restorePhoto(String id) async {
+    try {
+      await _api.dio.dio.post('${Endpoints.photos}/$id/restore');
+      loadPhotos();
     } catch (_) {}
   }
 }

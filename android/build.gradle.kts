@@ -24,8 +24,8 @@ subprojects {
                 }
             }
             // Fix outdated compileSdk
-            if (androidExt.compileSdkVersion.toString().contains("android-30")) {
-                androidExt.compileSdk = 35
+            if (true) { // Force compileSdk 36 for all plugins
+                androidExt.compileSdk = 36
             }
         }
     }

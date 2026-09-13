@@ -29,10 +29,10 @@
 | 25 | Contacts | ✅ | List + create/delete |
 | 26 | Messages | ✅ | Conversation view |
 | 27 | TOTP authenticator | ✅ | Display codes, auto-refresh |
-| 28 | Photos gallery | ✅ | Grid, search, starred/favorites, detail panel, star/trash |
+| 28 | Photos gallery | ✅ | Grid, search, starred/favorites, detail panel, star/trash, upload from camera/gallery |
 | 29 | Videos player | ✅ | List, search, delete, size display |
-| 30 | Drive file browser | ✅ | Folder nav, create folder, rename, delete, breadcrumb |
-| 31 | Push notifications (FCM) | ❌ | Needs firebase_messaging setup |
+| 30 | Drive file browser | ✅ | Folder nav, create folder, rename, delete, breadcrumb, upload, download/preview |
+| 31 | Push notifications (FCM) | ✅ | PushNotifier with subscribe/unsubscribe, token management |
 | 32 | Settings | ✅ | Profile edit, password, sessions, 2FA toggle, theme, activity/tags/graph/videos nav |
 | 33 | Mail (local-only) | ✅ | Basic stub with local storage |
 | 34 | Voice notes (local-only) | ✅ | Basic stub with local storage |
@@ -46,3 +46,8 @@
 | 42 | Error handling widgets | ✅ | ErrorScreen, OfflineBanner |
 | 43 | App icons & splash screen | ✅ | Android adaptive icon generated |
 | 44 | Pull-to-refresh | ✅ | On all list screens |
+| 45 | Photo albums CRUD | ✅ | Create, rename, delete albums, add/remove photos |
+| 46 | People/faces view | ✅ | Detected faces grid, rename person, photo count |
+| 47 | Pagination mixin | ✅ | PaginatedMixin, PaginationState for cursor-based pagination |
+| 48 | Unit tests | ✅ | 20 tests: models, endpoints, pagination state |
+| 49 | Release APK build | ✅ | 60.3MB release APK, compileSdk 36, core desugaring |

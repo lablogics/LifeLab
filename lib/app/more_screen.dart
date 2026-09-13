@@ -19,6 +19,8 @@ class MoreScreen extends StatelessWidget {
           const Divider(),
           _sectionHeader('Media'),
           _MenuItem(icon: Icons.photo_library, title: 'Photos', subtitle: 'Gallery with albums and faces', onTap: () => context.go('/photos')),
+          _MenuItem(icon: Icons.photo_album, title: 'Albums', subtitle: 'Organize photos into albums', onTap: () => context.go('/photos/albums')),
+          _MenuItem(icon: Icons.face, title: 'People', subtitle: 'Faces detected in photos', onTap: () => context.go('/photos/faces')),
           _MenuItem(icon: Icons.videocam, title: 'Videos', subtitle: 'Video library', onTap: () => context.go('/videos')),
           _MenuItem(icon: Icons.folder_open, title: 'Drive', subtitle: 'File browser', onTap: () => context.go('/drive')),
           const Divider(),
