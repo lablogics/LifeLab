@@ -22,6 +22,10 @@ import '../features/totp/presentation/totp_screen.dart';
 import '../features/photos/presentation/photos_screen.dart';
 import '../features/drive/presentation/drive_screen.dart';
 import 'settings_screen.dart';
+import '../features/mail/presentation/mail_screen.dart';
+import '../features/voice/presentation/voice_screen.dart';
+import '../features/finance/presentation/finance_screen.dart';
+import '../features/backup/presentation/backup_screen.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authProvider);
   return GoRouter(
@@ -65,6 +69,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/photos', builder: (context, state) => const PhotosScreen()),
           GoRoute(path: '/drive', builder: (context, state) => const DriveScreen()),
           GoRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
+          GoRoute(path: '/mail', builder: (context, state) => const MailScreen()),
+          GoRoute(path: '/voice', builder: (context, state) => const VoiceScreen()),
+          GoRoute(path: '/finance', builder: (context, state) => const FinanceScreen()),
+          GoRoute(path: '/backup', builder: (context, state) => const BackupScreen()),
         ],
       ),
     ],
