@@ -7,6 +7,7 @@ import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/notes/presentation/notes_list_screen.dart';
 import '../features/notes/presentation/note_edit_screen.dart';
+import '../features/todos/presentation/todos_list_screen.dart';
 import 'shell.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -30,6 +31,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => AppShell(child: child),
         routes: [
           GoRoute(path: '/dashboard', builder: (context, state) => const DashboardScreen()),
+          GoRoute(path: '/todos', builder: (context, state) => const TodosListScreen()),
           GoRoute(
             path: '/notes',
             builder: (context, state) => const NotesListScreen(),
