@@ -1,9 +1,9 @@
 # Task 34: Voice Notes (Local-Only)
 
-**Status:** ❌ Pending | **Phase:** 4
+**Status:** ✅ Complete | **Phase:** 4
 
 ## Checklist
-- [ ] Voice recorder
-- [ ] Voice note player
-- [ ] Local storage with Isar
-- [ ] Optional R2 upload
+- [x] Voice recorder
+- [x] Voice note player
+- [x] Local storage with Isar
+- [x] Optional R2 upload

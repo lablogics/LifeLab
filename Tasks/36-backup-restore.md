@@ -1,12 +1,12 @@
 # Task 36: Backup/Restore
 
-**Status:** ❌ Pending | **Phase:** 4
+**Status:** ✅ Complete | **Phase:** 4
 
 ## Checklist
-- [ ] Export all data to JSON via POST /api/export/backup
-- [ ] Import from JSON via POST /api/export/import
-- [ ] Include client-only data (mail, voice, finance)
-- [ ] File picker for import
+- [x] Export all data to JSON via POST /api/export/backup
+- [x] Import from JSON via POST /api/export/import
+- [x] Include client-only data (mail, voice, finance)
+- [x] File picker for import
 
 ## API Routes
 - `/api/export/backup` — POST (full JSON dump)

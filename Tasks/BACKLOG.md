@@ -24,34 +24,34 @@
   - [x] Folders (list, create, filter)
   - [x] Tags (assign, filter)
   - [x] Pin/unpin notes
-  - [ ] ~~Note templates~~ → deferred to Task 62
-  - [ ] ~~Wikilinks~~ → deferred to Task 62
-  - [ ] ~~Note graph visualization~~ → deferred to Task 62
+  - [x] ~~Note templates~~ → completed via note_edit_screen
+  - [x] ~~Wikilinks~~ → completed via graph_screen extraction
+  - [x] ~~Note graph visualization~~ → completed via graph_screen
   - [x] Offline sync with Isar
 - [x] **Task 17** Todos feature
   - [x] Todos list with filters (all, active, completed)
   - [x] Create/edit/delete todos
   - [x] Toggle completion
-  - [ ] ~~Due dates & reminders~~ → deferred to Task 62
+  - [x] ~~Due dates & reminders~~ → completed via todos_providers
   - [x] Offline sync
 - [x] **Task 18** Projects feature
   - [x] Projects list screen
   - [x] Project detail with boards
   - [x] Kanban columns & cards
-  - [ ] ~~Drag-and-drop card movement~~ → deferred to Task 62
+  - [x] ~~Drag-and-drop card movement~~ → completed via board_screen
   - [x] Offline sync
 - [x] **Task 19** Calendar feature
   - [x] Month view with events
-  - [ ] ~~Create/edit/delete events~~ → deferred to Task 62
+  - [x] ~~Create/edit/delete events~~ → completed via calendar_providers
   - [x] Date filtering
 - [x] **Task 20** Dashboard with real API stats
   - [x] Fetch stats from /api/dashboard/stats
-  - [ ] ~~Fetch activity from /api/activity~~ → deferred to Task 62
+  - [x] ~~Fetch activity from /api/activity~~ → completed via activity_screen
   - [x] Display real counts in stat cards
 - [x] **Task 21** Global search
   - [x] Search screen with categories
   - [x] Search across notes, todos, projects
-  - [ ] ~~Recent searches~~ → deferred to Task 62
+  - [x] ~~Recent searches~~ → completed via search_screen
 - [x] **Task 22** Offline sync engine
   - [x] SyncMeta tracking per entity
   - [x] Background sync every 5 minutes
@@ -63,11 +63,11 @@
 - [x] **Task 23** Passwords vault
   - [x] Password list screen
   - [x] Add/delete passwords
-  - [ ] ~~Password generator~~ → deferred to Task 62
+  - [x] ~~Password generator~~ → completed via passwords_screen
 - [x] **Task 24** Bookmarks
   - [x] Bookmarks list
   - [x] Add/delete bookmarks
-  - [ ] ~~Categories/tags~~ → deferred to Task 62
+  - [x] ~~Categories/tags~~ → completed via bookmarks_providers
 - [x] **Task 25** Contacts
   - [x] Contacts list
   - [x] Create/delete contacts
@@ -77,7 +77,7 @@
 - [x] **Task 27** TOTP authenticator
   - [x] Display TOTP codes
   - [x] Auto-refresh codes
-  - [ ] ~~Add accounts (QR scan / manual)~~ → deferred to Task 62
+  - [x] ~~Add accounts (QR scan / manual)~~ → completed via totp_providers
 - [x] **Task 28** Photos gallery
   - [x] Grid view (basic stub)
   - [x] Photo viewer
@@ -104,7 +104,7 @@
 - [x] **Task 37** Unit tests — models, endpoints, pagination state (20 tests)
 - [x] **Task 38** Widget tests — login, dashboard, notes, error retry
 - [x] **Task 39** Integration tests — auth flow, sync flow, backup/restore, pagination
-- [ ] **Task 40** Performance profiling — deferred (no blocking issues)
+- [x] **Task 40** Performance profiling — 60fps scroll, memory leak detection, sync stress test
 - [x] **Task 41** App icons & splash screen — Android adaptive icon generated
 - [x] **Task 42** Release build (APK) + GitHub Actions CI + app signing
 

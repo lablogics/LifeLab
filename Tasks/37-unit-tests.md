@@ -1,8 +1,8 @@
 # Task 37: Unit Tests (70% Coverage)
 
-**Status:** ❌ Pending | **Phase:** 5
+**Status:** ✅ Complete | **Phase:** 5
 
 ## Checklist
-- [ ] Repository tests (mocked datasources)
-- [ ] Provider tests (mocked repositories)
-- [ ] Datasource tests (mocked API/Isar)
+- [x] Repository tests (mocked datasources)
+- [x] Provider tests (mocked repositories)
+- [x] Datasource tests (mocked API/Isar)

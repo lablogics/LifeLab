@@ -1,12 +1,12 @@
 # Task 25: Contacts
 
-**Status:** ❌ Pending | **Phase:** 3
+**Status:** ✅ Complete | **Phase:** 3
 
 ## Checklist
-- [ ] Contacts list
-- [ ] Contact detail
-- [ ] Create/edit/delete contacts
-- [ ] Offline sync
+- [x] Contacts list
+- [x] Contact detail
+- [x] Create/edit/delete contacts
+- [x] Offline sync
 
 ## API Routes
 - `/api/contacts` — CRUD

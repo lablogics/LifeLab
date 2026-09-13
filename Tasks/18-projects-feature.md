@@ -1,15 +1,15 @@
 # Task 18: Projects Feature
 
-**Status:** ❌ Pending
+**Status:** ✅ Complete
 **Phase:** 2 — Core Productivity
 
 ## Checklist
 
-- [ ] Projects list screen
-- [ ] Project detail with boards
-- [ ] Kanban columns & cards
-- [ ] Drag-and-drop card movement
-- [ ] Offline sync with Isar
+- [x] Projects list screen
+- [x] Project detail with boards
+- [x] Kanban columns & cards
+- [x] Drag-and-drop card movement
+- [x] Offline sync with Isar
 
 ## API Routes
 - `/api/projects` — CRUD

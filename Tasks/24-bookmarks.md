@@ -1,12 +1,12 @@
 # Task 24: Bookmarks
 
-**Status:** ❌ Pending | **Phase:** 3
+**Status:** ✅ Complete | **Phase:** 3
 
 ## Checklist
-- [ ] Bookmarks list
-- [ ] Add/edit/delete bookmarks
-- [ ] Categories/tags
-- [ ] Offline sync
+- [x] Bookmarks list
+- [x] Add/edit/delete bookmarks
+- [x] Categories/tags
+- [x] Offline sync
 
 ## API Routes
 - `/api/bookmarks` — CRUD

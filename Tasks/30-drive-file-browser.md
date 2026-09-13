@@ -1,12 +1,12 @@
 # Task 30: Drive File Browser
 
-**Status:** ❌ Pending | **Phase:** 3
+**Status:** ✅ Complete | **Phase:** 3
 
 ## Checklist
-- [ ] File/folder list
-- [ ] Upload/download files
-- [ ] Storage backend management
-- [ ] Offline sync
+- [x] File/folder list
+- [x] Upload/download files
+- [x] Storage backend management
+- [x] Offline sync
 
 ## API Routes
 - `/api/drive` — File/folder CRUD

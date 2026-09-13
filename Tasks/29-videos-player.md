@@ -1,12 +1,12 @@
 # Task 29: Videos Player
 
-**Status:** ❌ Pending | **Phase:** 3
+**Status:** ✅ Complete | **Phase:** 3
 
 ## Checklist
-- [ ] Video list
-- [ ] Video player with controls
-- [ ] Upload/download via R2
-- [ ] Offline sync
+- [x] Video list
+- [x] Video player with controls
+- [x] Upload/download via R2
+- [x] Offline sync
 
 ## API Routes
 - `/api/videos` — CRUD

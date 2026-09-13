@@ -1,9 +1,9 @@
 # Task 33: Mail (Local-Only)
 
-**Status:** ❌ Pending | **Phase:** 4
+**Status:** ✅ Complete | **Phase:** 4
 
 ## Checklist
-- [ ] Email client UI
-- [ ] Local folders (inbox, sent, drafts, trash)
-- [ ] Compose/read/delete emails
-- [ ] Isar-only storage (no API)
+- [x] Email client UI
+- [x] Local folders (inbox, sent, drafts, trash)
+- [x] Compose/read/delete emails
+- [x] Isar-only storage (no API)

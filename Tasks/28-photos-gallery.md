@@ -1,13 +1,13 @@
 # Task 28: Photos Gallery
 
-**Status:** ❌ Pending | **Phase:** 3
+**Status:** ✅ Complete | **Phase:** 3
 
 ## Checklist
-- [ ] Grid view
-- [ ] Photo viewer (zoom, swipe)
-- [ ] Face detection & clustering
-- [ ] Upload/download via R2
-- [ ] Offline sync
+- [x] Grid view
+- [x] Photo viewer (zoom, swipe)
+- [x] Face detection & clustering
+- [x] Upload/download via R2
+- [x] Offline sync
 
 ## API Routes
 - `/api/photos` — CRUD

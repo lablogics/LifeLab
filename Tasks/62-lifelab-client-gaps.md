@@ -141,7 +141,7 @@ Priority: **COMPLETE** — all gaps resolved as of 2026-09-13.
 
 ## Server Prerequisites (tracked in 60-feature-completion.md)
 
-These LifeOS server tasks must be completed before LifeLab can fully function:
-- [ ] S3-compatible storage proxy (photos/videos/drive blob serving)
-- [ ] Presigned URL generation for direct uploads
-- [ ] External storage OAuth token refresh (GDrive/Dropbox)
+These LifeOS server tasks have been completed:
+- [x] S3-compatible storage proxy (photos/videos/drive blob serving)
+- [x] Presigned URL generation for direct uploads
+- [x] External storage OAuth token refresh (GDrive/Dropbox)
