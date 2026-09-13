@@ -8,6 +8,8 @@ import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/notes/presentation/notes_list_screen.dart';
 import '../features/notes/presentation/note_edit_screen.dart';
 import '../features/todos/presentation/todos_list_screen.dart';
+import '../features/projects/presentation/projects_list_screen.dart';
+import '../features/projects/presentation/board_screen.dart';
 import 'shell.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -31,17 +33,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => AppShell(child: child),
         routes: [
           GoRoute(path: '/dashboard', builder: (context, state) => const DashboardScreen()),
-          GoRoute(path: '/todos', builder: (context, state) => const TodosListScreen()),
-          GoRoute(
-            path: '/notes',
-            builder: (context, state) => const NotesListScreen(),
+          GoRoute(path: '/notes', builder: (context, state) => const NotesListScreen(),
             routes: [
-              GoRoute(
-                path: ':id',
-                builder: (context, state) => NoteEditScreen(
-                  noteId: state.pathParameters['id']!,
-                ),
-              ),
+              GoRoute(path: ':id', builder: (context, state) => NoteEditScreen(noteId: state.pathParameters['id']!)),
+            ],
+          ),
+          GoRoute(path: '/todos', builder: (context, state) => const TodosListScreen()),
+          GoRoute(path: '/projects', builder: (context, state) => const ProjectsListScreen(),
+            routes: [
+              GoRoute(path: ':id', builder: (context, state) => BoardScreen(projectId: state.pathParameters['id']!)),
             ],
           ),
         ],
