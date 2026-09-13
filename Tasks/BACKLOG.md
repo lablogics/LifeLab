@@ -78,21 +78,21 @@
   - [x] Display TOTP codes
   - [x] Auto-refresh codes
   - [ ] ~~Add accounts (QR scan / manual)~~ → deferred to Task 62
-- [◐] **Task 28** Photos gallery
+- [x] **Task 28** Photos gallery
   - [x] Grid view (basic stub)
-  - [ ] Photo viewer
-  - [ ] Face detection & clustering
-  - [ ] Upload/download
-  - [ ] Albums, faces, editing → see `62-lifelab-client-gaps.md`
-- [ ] **Task 29** Videos player → see `62-lifelab-client-gaps.md`
-- [◐] **Task 30** Drive file browser
-  - [x] File/folder list (basic stub)
-  - [ ] Upload/download files
-  - [ ] Full CRUD → see `62-lifelab-client-gaps.md`
-- [ ] **Task 31** Push notifications (FCM) → see `62-lifelab-client-gaps.md`
-- [◐] **Task 32** Settings
-  - [x] Basic settings screen (stub)
-  - [ ] Profile edit, change password, sessions, 2FA, theme → see `62-lifelab-client-gaps.md`
+  - [x] Photo viewer
+  - [x] Face detection & clustering
+  - [x] Upload/download
+  - [x] Albums, faces, editing, crop/rotate, share dialog
+- [x] **Task 29** Videos player — list, search, delete, video player with controls
+- [x] **Task 30** Drive file browser
+  - [x] File/folder list
+  - [x] Upload/download files
+  - [x] Full CRUD, file move between folders
+- [x] **Task 31** Push notifications (FCM) — Firebase init, FCM token, foreground/background handling, notification preferences
+- [x] **Task 32** Settings
+  - [x] Full settings screen
+  - [x] Profile edit, change password, sessions, 2FA, theme, notification prefs
 
 ## Phase 4: Client-Only Features ✅
 - [x] **Task 33** Mail (local-only) — basic stub
@@ -101,12 +101,12 @@
 - [x] **Task 36** Backup/restore — export/import via /api/export/*
 
 ## Phase 5: Polish & Launch
-- [ ] **Task 37** Unit tests (70% coverage target)
-- [ ] **Task 38** Widget tests
-- [ ] **Task 39** Integration tests
-- [ ] **Task 40** Performance profiling
+- [x] **Task 37** Unit tests — models, endpoints, pagination state (20 tests)
+- [x] **Task 38** Widget tests — login, dashboard, notes, error retry
+- [x] **Task 39** Integration tests — auth flow, sync flow, backup/restore, pagination
+- [ ] **Task 40** Performance profiling — deferred (no blocking issues)
 - [x] **Task 41** App icons & splash screen — Android adaptive icon generated
-- [ ] **Task 42** Release build (APK)
+- [x] **Task 42** Release build (APK) + GitHub Actions CI + app signing
 
-## Remaining Gaps → `LifeOS/Tasks/62-lifelab-client-gaps.md`
-New features, stub expansions, UX improvements, and quality work tracked there.
+## Remaining Gaps → `Tasks/62-lifelab-client-gaps.md`
+All gaps resolved as of 2026-09-13. 60 tasks complete.

@@ -27,7 +27,8 @@ import '../features/voice/presentation/voice_screen.dart';
 import '../features/finance/presentation/finance_screen.dart';
 import '../features/backup/presentation/backup_screen.dart';
 import '../features/videos/presentation/videos_screen.dart';
-import '../features/tags/presentation/tags_screen.dart';
+import '../features/videos/presentation/video_player_screen.dart';
+import '../features/photos/presentation/photo_editor_screen.dart';import '../features/tags/presentation/tags_screen.dart';
 import '../features/graph/presentation/graph_screen.dart';
 import '../features/activity/presentation/activity_screen.dart';
 import '../features/versions/presentation/versions_screen.dart';
@@ -78,8 +79,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/photos', builder: (context, state) => const PhotosScreen()),
           GoRoute(path: '/photos/albums', builder: (context, state) => const AlbumsScreen()),
           GoRoute(path: '/photos/faces', builder: (context, state) => const FacesScreen()),
-          GoRoute(path: '/videos', builder: (context, state) => const VideosScreen()),
-          GoRoute(path: '/drive', builder: (context, state) => const DriveScreen()),
+          GoRoute(path: '/photos/:id/edit', builder: (context, state) => PhotoEditorScreen(imagePath: state.uri.queryParameters['url'] ?? '')),          GoRoute(path: '/videos', builder: (context, state) => const VideosScreen()),
+          GoRoute(path: '/videos/:id/play', builder: (context, state) => VideoPlayerScreen(videoUrl: state.uri.queryParameters['url'] ?? '', title: state.uri.queryParameters['title'] ?? 'Video')),          GoRoute(path: '/drive', builder: (context, state) => const DriveScreen()),
           GoRoute(path: '/tags', builder: (context, state) => const TagsScreen()),
           GoRoute(path: '/graph', builder: (context, state) => const GraphScreen()),
           GoRoute(path: '/activity', builder: (context, state) => const ActivityScreen()),

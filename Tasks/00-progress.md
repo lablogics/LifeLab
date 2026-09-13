@@ -51,3 +51,14 @@
 | 47 | Pagination mixin | ✅ | PaginatedMixin, PaginationState for cursor-based pagination |
 | 48 | Unit tests | ✅ | 20 tests: models, endpoints, pagination state |
 | 49 | Release APK build | ✅ | 60.3MB release APK, compileSdk 36, core desugaring |
+| 50 | Firebase init + FCM + notifications | ✅ | main.dart Firebase init, background handler, local notifications |
+| 51 | Video player screen | ✅ | video_player integration, play/pause controls |
+| 52 | Photo editor (crop/rotate) | ✅ | Rotate, flip, crop sliders, reset, share dialog |
+| 53 | Drive file move | ✅ | moveItem in DriveNotifier, parentId update |
+| 54 | Pagination wiring | ✅ | PaginatedMixin + PaginationState, cursor-based pagination |
+| 55 | Widget tests | ✅ | Login, dashboard, notes empty state, error retry |
+| 56 | Integration tests | ✅ | Auth flow, sync flow, backup/restore, pagination |
+| 57 | Accessibility | ✅ | Semantic labels, accessibility actions on list items |
+| 58 | GitHub Actions CI | ✅ | ci.yml: analyze, test, build APK, upload artifact |
+| 59 | Notification preferences | ✅ | Foreground/background toggles in settings |
+| 60 | Gaps audit closure | ✅ | All 62-gaps items resolved, progress board updated |

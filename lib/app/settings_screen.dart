@@ -1,3 +1,4 @@
+import '../features/push/data/push_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lifelab_core/api/api_client.dart';
@@ -80,7 +81,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ListTile(leading: const Icon(Icons.hub_outlined), title: const Text('Knowledge Graph'), onTap: () => context.push('/graph')),
         ListTile(leading: const Icon(Icons.videocam), title: const Text('Videos'), onTap: () => context.push('/videos')),
         const Divider(),
-        ListTile(leading: const Icon(Icons.info), title: const Text('About LifeLab'), subtitle: const Text('Version 1.0.0')),
+        ListTile(leading: const Icon(Icons.notifications), title: const Text('Notification Preferences'), onTap: () {
+          final push = ref.read(pushProvider.notifier);
+          showDialog(context: context, builder: (ctx) => AlertDialog(
+            title: const Text('Notifications'),
+            content: Column(mainAxisSize: MainAxisSize.min, children: [
+              SwitchListTile(title: const Text('Foreground notifications'), value: ref.read(pushProvider).foregroundEnabled, onChanged: (v) { push.setForegroundEnabled(v); setState(() {}); }),
+              SwitchListTile(title: const Text('Background notifications'), value: ref.read(pushProvider).backgroundEnabled, onChanged: (v) { push.setBackgroundEnabled(v); setState(() {}); }),
+            ]),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+          ));
+        }),        ListTile(leading: const Icon(Icons.info), title: const Text('About LifeLab'), subtitle: const Text('Version 1.0.0')),
         const Divider(),
         Padding(padding: const EdgeInsets.all(16), child: FilledButton.tonal(onPressed: () async { await ref.read(authProvider.notifier).logout(); if (context.mounted) context.go('/login'); }, child: const Text('Sign Out'))),
       ]),

@@ -100,6 +100,13 @@ class DriveNotifier extends StateNotifier<DriveState> {
   }
 
   Future<void> refresh() async => loadFolder(state.path.isEmpty ? null : state.path.last, '');
-}
+
+  Future<void> moveItem(String id, String? newParentId) async {
+    try {
+      await _api.dio.dio.put('${Endpoints.drive}/$id', data: {'parentId': newParentId});
+      loadFolder(state.path.isEmpty ? null : state.path.last, '');
+    } catch (e) { state = state.copyWith(error: e.toString()); }
+  }}
 
 final driveProvider = StateNotifierProvider<DriveNotifier, DriveState>((ref) => DriveNotifier(ref.watch(apiClientProvider)));
+
