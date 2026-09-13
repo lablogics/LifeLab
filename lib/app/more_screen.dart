@@ -6,7 +6,6 @@ class MoreScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('More')),
       body: ListView(
@@ -27,25 +26,25 @@ class MoreScreen extends StatelessWidget {
             icon: Icons.password,
             title: 'Passwords',
             subtitle: 'Password vault',
-            onTap: () {},
+            onTap: () => context.go('/passwords'),
           ),
           _MenuItem(
             icon: Icons.bookmark_outline,
             title: 'Bookmarks',
             subtitle: 'Saved links and resources',
-            onTap: () {},
+            onTap: () => context.go('/bookmarks'),
           ),
           _MenuItem(
             icon: Icons.contacts,
             title: 'Contacts',
             subtitle: 'People and organizations',
-            onTap: () {},
+            onTap: () => context.go('/contacts'),
           ),
           _MenuItem(
             icon: Icons.chat_bubble_outline,
             title: 'Messages',
             subtitle: 'Conversations',
-            onTap: () {},
+            onTap: () => context.go('/contacts'),
           ),
           _MenuItem(
             icon: Icons.settings,

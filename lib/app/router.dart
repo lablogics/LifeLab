@@ -14,6 +14,10 @@ import '../features/calendar/presentation/calendar_screen.dart';
 import 'shell.dart';
 import 'more_screen.dart';
 import '../features/search/presentation/search_screen.dart';
+import '../features/passwords/presentation/passwords_screen.dart';
+import '../features/bookmarks/presentation/bookmarks_screen.dart';
+import '../features/contacts/presentation/contacts_screen.dart';
+import '../features/messages/presentation/messages_screen.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authProvider);
   return GoRouter(
@@ -49,6 +53,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/calendar', builder: (context, state) => const CalendarScreen()),
           GoRoute(path: '/more', builder: (context, state) => const MoreScreen()),
           GoRoute(path: '/search', builder: (context, state) => const SearchScreen()),
+          GoRoute(path: '/passwords', builder: (context, state) => const PasswordsScreen()),
+          GoRoute(path: '/bookmarks', builder: (context, state) => const BookmarksScreen()),
+          GoRoute(path: '/contacts', builder: (context, state) => const ContactsScreen()),
+          GoRoute(path: '/contacts/:id/messages', builder: (context, state) => MessagesScreen(contactId: state.pathParameters['id']!, contactName: state.pathParameters['id']!)),
         ],
       ),
     ],
