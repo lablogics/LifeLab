@@ -1,5 +1,4 @@
-/// A Calculator.
-class Calculator {
-  /// Returns [value] plus 1.
-  int addOne(int value) => value + 1;
-}
+library lifelab_ui;
+export 'theme/app_theme.dart';
+export 'theme/app_colors.dart';
+export 'theme/app_typography.dart';

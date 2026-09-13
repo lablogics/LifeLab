@@ -1,0 +1,152 @@
+# LifeLab Backlog
+
+## Phase 1: Foundation ✅
+- [x] **Task 1** Flutter project scaffold with core packages
+- [x] **Task 2** Material 3 theme (light/dark modes)
+- [x] **Task 3** Isar database setup (UserCollection, SyncMetaCollection)
+- [x] **Task 4** Dio API client with 35+ endpoint constants
+- [x] **Task 5** Auth interceptor (cookie-based session)
+- [x] **Task 6** Secure token storage (flutter_secure_storage)
+- [x] **Task 7** Auth repository (login, 2FA verify, logout)
+- [x] **Task 8** Auth state & provider (Riverpod StateNotifier)
+- [x] **Task 9** Login screen (email/password form)
+- [x] **Task 10** 2FA verification screen (6-digit TOTP)
+- [x] **Task 11** GoRouter with auth guard & redirect logic
+- [x] **Task 12** Navigation shell (bottom nav bar)
+- [x] **Task 13** Dashboard screen (stat cards, welcome)
+- [x] **Task 14** Wire up main.dart with theme & router
+- [x] **Task 15** Fix build errors & run code generation
+
+## Phase 2: Core Productivity
+- [ ] **Task 16** Notes feature
+  - [ ] Notes list screen with search
+  - [ ] Note detail/edit screen with rich text editor
+  - [ ] Folders (create, rename, delete, move notes)
+  - [ ] Tags (create, assign, filter)
+  - [ ] Note templates (daily, meeting, project, idea)
+  - [ ] Wikilinks [[note]] support
+  - [ ] Note graph visualization
+  - [ ] Offline sync with Isar
+- [ ] **Task 17** Todos feature
+  - [ ] Todos list with filters (all, active, completed)
+  - [ ] Create/edit/delete todos
+  - [ ] Toggle completion
+  - [ ] Due dates & reminders
+  - [ ] Offline sync
+- [ ] **Task 18** Projects feature
+  - [ ] Projects list screen
+  - [ ] Project detail with boards
+  - [ ] Kanban columns & cards
+  - [ ] Drag-and-drop card movement
+  - [ ] Offline sync
+- [ ] **Task 19** Calendar feature
+  - [ ] Month view with events
+  - [ ] Create/edit/delete events
+  - [ ] Date filtering
+  - [ ] Offline sync
+- [ ] **Task 20** Dashboard with real API stats
+  - [ ] Fetch stats from /api/dashboard
+  - [ ] Fetch activity from /api/activity
+  - [ ] Display real counts in stat cards
+- [ ] **Task 21** Global search
+  - [ ] Search screen with categories
+  - [ ] Search across notes, todos, projects, contacts
+  - [ ] Recent searches
+- [ ] **Task 22** Offline sync engine
+  - [ ] SyncMeta tracking per entity
+  - [ ] Background sync every 5 minutes
+  - [ ] Connectivity change listener
+  - [ ] Conflict resolution (server wins)
+  - [ ] Exponential backoff retry
+
+## Phase 3: Security & Media
+- [ ] **Task 23** Passwords vault
+  - [ ] Password list screen
+  - [ ] Add/edit/delete passwords
+  - [ ] Encryption/decryption
+  - [ ] Password generator
+- [ ] **Task 24** Bookmarks
+  - [ ] Bookmarks list
+  - [ ] Add/edit/delete bookmarks
+  - [ ] Categories/tags
+- [ ] **Task 25** Contacts
+  - [ ] Contacts list
+  - [ ] Contact detail
+  - [ ] Create/edit/delete contacts
+- [ ] **Task 26** Messages
+  - [ ] Conversations list
+  - [ ] Chat view
+  - [ ] Send/receive messages
+- [ ] **Task 27** TOTP authenticator
+  - [ ] Display TOTP codes
+  - [ ] Add accounts (QR scan / manual)
+  - [ ] Auto-refresh codes
+- [ ] **Task 28** Photos gallery
+  - [ ] Grid view
+  - [ ] Photo viewer
+  - [ ] Face detection & clustering
+  - [ ] Upload/download
+- [ ] **Task 29** Videos player
+  - [ ] Video list
+  - [ ] Video player with controls
+- [ ] **Task 30** Drive file browser
+  - [ ] File/folder list
+  - [ ] Upload/download files
+  - [ ] Storage backend management
+- [ ] **Task 31** Push notifications (FCM)
+  - [ ] Firebase initialization
+  - [ ] FCM token management
+  - [ ] Subscribe/unsubscribe via /api/push
+  - [ ] Handle incoming notifications
+- [ ] **Task 32** Settings
+  - [ ] Profile edit (name, email)
+  - [ ] Change password
+  - [ ] 2FA enable/disable
+  - [ ] Session management (list, revoke)
+  - [ ] Theme toggle (light/dark/system)
+
+## Phase 4: Client-Only Features
+- [ ] **Task 33** Mail (local-only)
+  - [ ] Email client UI
+  - [ ] Local folders
+  - [ ] Compose/read/delete
+- [ ] **Task 34** Voice notes (local-only)
+  - [ ] Voice recorder
+  - [ ] Voice note player
+  - [ ] Local storage
+- [ ] **Task 35** Finance tracker (local-only)
+  - [ ] Budget tracking
+  - [ ] Expense categories
+  - [ ] Reports/charts
+- [ ] **Task 36** Backup/restore
+  - [ ] Export all data to JSON via /api/export/backup
+  - [ ] Import from JSON via /api/export/import
+  - [ ] Include client-only data (mail, voice, finance)
+
+## Phase 5: Polish & Launch
+- [ ] **Task 37** Unit tests (70% coverage target)
+  - [ ] Repository tests
+  - [ ] Provider tests
+  - [ ] Datasource tests
+- [ ] **Task 38** Widget tests
+  - [ ] Login screen
+  - [ ] Dashboard screen
+  - [ ] Notes screen
+  - [ ] Settings screen
+- [ ] **Task 39** Integration tests
+  - [ ] Auth flow (login → 2FA → dashboard)
+  - [ ] Offline sync flow
+  - [ ] Backup/restore flow
+- [ ] **Task 40** Performance profiling
+  - [ ] 60fps scroll testing
+  - [ ] Memory leak detection
+  - [ ] Offline sync stress test
+- [ ] **Task 41** App icons & splash screen
+  - [ ] Android adaptive icons
+  - [ ] iOS app icons
+  - [ ] Splash screen design
+- [ ] **Task 42** Release build
+  - [ ] Android APK/AAB
+  - [ ] iOS IPA
+  - [ ] App store descriptions
+  - [ ] Screenshots
