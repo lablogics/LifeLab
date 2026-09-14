@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../data/notes_providers.dart';
 
 /// Floating quick notes widget for creating notes from anywhere
@@ -57,7 +56,6 @@ class _QuickNotesWidgetState extends ConsumerState<QuickNotesWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     if (_isMinimized) {
       return FloatingActionButton.small(
         heroTag: 'quick_note',

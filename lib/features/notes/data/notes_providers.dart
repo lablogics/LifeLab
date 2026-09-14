@@ -20,6 +20,9 @@ final notesRepositoryProvider = Provider<NotesRepository>((ref) {
 
 // ── Notes state ──
 
+enum NotesSortMode { updated, created, title }
+enum NotesViewMode { list, grid }
+
 class NotesState {
   final List<NoteModel> notes;
   final bool isLoading;
@@ -27,6 +30,10 @@ class NotesState {
   final String? selectedFolderId;
   final String? selectedTagId;
   final String searchQuery;
+  final NotesSortMode sortMode;
+  final NotesViewMode viewMode;
+  final bool starredOnly;
+  final Set<String> selectedIds;
 
   const NotesState({
     this.notes = const [],
@@ -35,6 +42,10 @@ class NotesState {
     this.selectedFolderId,
     this.selectedTagId,
     this.searchQuery = '',
+    this.sortMode = NotesSortMode.updated,
+    this.viewMode = NotesViewMode.list,
+    this.starredOnly = false,
+    this.selectedIds = const {},
   });
 
   NotesState copyWith({
@@ -44,6 +55,10 @@ class NotesState {
     String? selectedFolderId,
     String? selectedTagId,
     String? searchQuery,
+    NotesSortMode? sortMode,
+    NotesViewMode? viewMode,
+    bool? starredOnly,
+    Set<String>? selectedIds,
     bool clearFolder = false,
     bool clearTag = false,
   }) {
@@ -54,17 +69,35 @@ class NotesState {
       selectedFolderId: clearFolder ? null : (selectedFolderId ?? this.selectedFolderId),
       selectedTagId: clearTag ? null : (selectedTagId ?? this.selectedTagId),
       searchQuery: searchQuery ?? this.searchQuery,
+      sortMode: sortMode ?? this.sortMode,
+      viewMode: viewMode ?? this.viewMode,
+      starredOnly: starredOnly ?? this.starredOnly,
+      selectedIds: selectedIds ?? this.selectedIds,
     );
   }
 
   List<NoteModel> get filteredNotes {
-    var result = notes;
+    var result = List<NoteModel>.from(notes);
+    if (starredOnly) {
+      result = result.where((n) => n.isPinned).toList();
+    }
     if (searchQuery.isNotEmpty) {
       final q = searchQuery.toLowerCase();
       result = result.where((n) =>
         n.title.toLowerCase().contains(q) ||
         n.contentText.toLowerCase().contains(q),
       ).toList();
+    }
+    switch (sortMode) {
+      case NotesSortMode.updated:
+        result.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        break;
+      case NotesSortMode.created:
+        result.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+      case NotesSortMode.title:
+        result.sort((a, b) => (a.title).toLowerCase().compareTo((b.title).toLowerCase()));
+        break;
     }
     return result;
   }
@@ -144,6 +177,48 @@ class NotesNotifier extends StateNotifier<NotesState> {
       _sync?.sync();
       state = state.copyWith(
         notes: state.notes.map((n) => n.id == id ? n.copyWith(isPinned: isPinned) : n).toList(),
+      );
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  void setSortMode(NotesSortMode mode) {
+    state = state.copyWith(sortMode: mode);
+  }
+
+  void setViewMode(NotesViewMode mode) {
+    state = state.copyWith(viewMode: mode);
+  }
+
+  void setStarredOnly(bool value) {
+    state = state.copyWith(starredOnly: value);
+  }
+
+  void toggleSelectNote(String id) {
+    final ids = Set<String>.from(state.selectedIds);
+    if (ids.contains(id)) { ids.remove(id); } else { ids.add(id); }
+    state = state.copyWith(selectedIds: ids);
+  }
+
+  void selectAllNotes() {
+    state = state.copyWith(selectedIds: state.notes.map((n) => n.id).toSet());
+  }
+
+  void clearSelection() {
+    state = state.copyWith(selectedIds: <String>{});
+  }
+
+  Future<void> bulkTrashNotes() async {
+    try {
+      for (final id in state.selectedIds) {
+        await _repository.trashNote(id);
+        _sync?.enqueueDelete('note', id);
+      }
+      _sync?.sync();
+      state = state.copyWith(
+        notes: state.notes.where((n) => !state.selectedIds.contains(n.id)).toList(),
+        selectedIds: <String>{},
       );
     } catch (e) {
       state = state.copyWith(error: e.toString());

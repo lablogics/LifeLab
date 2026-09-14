@@ -5,6 +5,9 @@ import 'package:lifelab_core/api/endpoints.dart';
 import 'package:lifelab_core/di/core_providers.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:dio/dio.dart';
+import 'dart:convert';
 
 class SessionModel {
   final String id; final String? userAgent; final bool isCurrent; final int? expiresAt;
@@ -26,12 +29,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _twoFaEnabled = false;
   bool _biometricEnabled = false;
   final _localAuth = LocalAuthentication();
+  String _language = 'English';
+  List<Map<String, dynamic>> _storages = [];
 
   @override
   void initState() {
     super.initState();
     _load2FaStatus();
     _checkBiometric();
+    _loadStorages();
   }
 
   Future<void> _checkBiometric() async {
@@ -53,6 +59,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       } catch (_) {}
     }
   }
+
   Future<void> _load2FaStatus() async {
     try {
       final r = await ref.read(apiClientProvider).dio.dio.get(Endpoints.twoFaStatus);
@@ -67,6 +74,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final list = (r.data as List? ?? []).map((e) => SessionModel.fromJson(e as Map<String, dynamic>)).toList();
       if (mounted) setState(() { _sessions = list; _loadingSessions = false; });
     } catch (_) { if (mounted) setState(() => _loadingSessions = false); }
+  }
+
+  Future<void> _loadStorages() async {
+    try {
+      final r = await ref.read(apiClientProvider).dio.dio.get(Endpoints.storages);
+      final list = (r.data as List? ?? []).cast<Map<String, dynamic>>();
+      if (mounted) setState(() => _storages = list);
+    } catch (_) {}
   }
 
   @override
@@ -97,8 +112,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         // Appearance
         ListTile(leading: const Icon(Icons.palette), title: const Text('Theme'), subtitle: const Text('System default'),
           trailing: const Icon(Icons.chevron_right), onTap: _showThemeDialog),
-        // Navigation to other features
+        // Language
+        ListTile(leading: const Icon(Icons.language), title: const Text('Language'), subtitle: Text(_language),
+          trailing: const Icon(Icons.chevron_right), onTap: _showLanguageDialog),
         const Divider(),
+        // Data section
+        ListTile(leading: const Icon(Icons.download), title: const Text('Backup & Restore'), subtitle: const Text('Export or import your data'),
+          trailing: const Icon(Icons.chevron_right), onTap: _showBackupRestore),
+        // Storage backends
+        ListTile(leading: const Icon(Icons.storage), title: const Text('Storage Backends'), subtitle: Text('${_storages.length} configured'),
+          trailing: const Icon(Icons.chevron_right), onTap: _showStorageBackends),
+        const Divider(),
+        // Navigation to other features
         ListTile(leading: const Icon(Icons.history), title: const Text('Activity Log'), onTap: () => context.push('/activity')),
         ListTile(leading: const Icon(Icons.label_outline), title: const Text('Tags'), onTap: () => context.push('/tags')),
         ListTile(leading: const Icon(Icons.hub_outlined), title: const Text('Knowledge Graph'), onTap: () => context.push('/graph')),
@@ -114,7 +139,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ]),
             actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
           ));
-        }),        ListTile(leading: const Icon(Icons.info), title: const Text('About LifeLab'), subtitle: const Text('Version 1.0.0')),
+        }),
+        ListTile(leading: const Icon(Icons.info), title: const Text('About LifeLab'), subtitle: const Text('Version 1.0.0')),
         const Divider(),
         Padding(padding: const EdgeInsets.all(16), child: FilledButton.tonal(onPressed: () async { await ref.read(authProvider.notifier).logout(); if (context.mounted) context.go('/login'); }, child: const Text('Sign Out'))),
       ]),
@@ -255,6 +281,139 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         SimpleDialogOption(onPressed: () => Navigator.pop(ctx), child: const Text('System default')),
         SimpleDialogOption(onPressed: () => Navigator.pop(ctx), child: const Text('Light')),
         SimpleDialogOption(onPressed: () => Navigator.pop(ctx), child: const Text('Dark')),
+      ],
+    ));
+  }
+
+  void _showLanguageDialog() {
+    showDialog(context: context, builder: (ctx) => SimpleDialog(
+      title: const Text('Language'),
+      children: [
+        SimpleDialogOption(onPressed: () { setState(() => _language = 'English'); Navigator.pop(ctx); }, child: const Text('English')),
+        SimpleDialogOption(onPressed: () { setState(() => _language = 'Fran\u00e7ais'); Navigator.pop(ctx); }, child: const Text('Fran\u00e7ais')),
+        SimpleDialogOption(onPressed: () { setState(() => _language = '\u0627\u0644\u0639\u0631\u0628\u064a\u0629'); Navigator.pop(ctx); }, child: const Text('\u0627\u0644\u0639\u0631\u0628\u064a\u0629')),
+        SimpleDialogOption(onPressed: () { setState(() => _language = 'Darija'); Navigator.pop(ctx); }, child: const Text('Darija')),
+      ],
+    ));
+  }
+
+  void _showBackupRestore() {
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Backup & Restore'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('Export all your data as a JSON backup file, or restore from a previous backup.'),
+        const SizedBox(height: 16),
+        ListTile(leading: const Icon(Icons.download), title: const Text('Full Backup'), onTap: () async {
+          Navigator.pop(ctx);
+          try {
+            final api = ref.read(apiClientProvider);
+            await api.dio.dio.get(Endpoints.exportBackup, options: Options(responseType: ResponseType.bytes));
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup exported')));
+          } catch (e) {
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Backup failed: $e')));
+          }
+        }),
+        ListTile(leading: const Icon(Icons.upload), title: const Text('Restore from Backup'), onTap: () async {
+          Navigator.pop(ctx);
+          try {
+            final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json']);
+            if (result == null || result.files.isEmpty) return;
+            final file = result.files.first;
+            final content = await file.xFile.readAsString();
+            final api = ref.read(apiClientProvider);
+            await api.dio.dio.post(Endpoints.exportImport, data: jsonDecode(content));
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data restored successfully')));
+          } catch (e) {
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Restore failed: $e')));
+          }
+        }),
+      ]),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+    ));
+  }
+
+  void _showStorageBackends() {
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Storage Backends'),
+      content: SizedBox(
+        width: 400, height: 400,
+        child: Column(children: [
+          Expanded(child: _storages.isEmpty
+              ? const Center(child: Text('No storage backends configured'))
+              : ListView.builder(itemCount: _storages.length, itemBuilder: (_, i) {
+                  final s = _storages[i];
+                  return Card(child: ListTile(
+                    leading: const Icon(Icons.storage),
+                    title: Text(s['name'] as String? ?? 'Storage'),
+                    subtitle: Text('${s['storageType'] ?? ''} - ${s['bucket'] ?? ''}'),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (s['isDefault'] == true) const Chip(label: Text('Default')),
+                      IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () async {
+                        try {
+                          await ref.read(apiClientProvider).dio.dio.delete('${Endpoints.storages}/${s['id']}');
+                          _loadStorages();
+                        } catch (_) {}
+                      }),
+                    ]),
+                  ));
+                })),
+          FilledButton.icon(
+            icon: const Icon(Icons.add), label: const Text('Add Storage'),
+            onPressed: () { Navigator.pop(ctx); _showAddStorage(); },
+          ),
+        ]),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+    ));
+  }
+
+  void _showAddStorage() {
+    final nameCtrl = TextEditingController();
+    final endpointCtrl = TextEditingController();
+    final bucketCtrl = TextEditingController();
+    final regionCtrl = TextEditingController();
+    final accessKeyCtrl = TextEditingController();
+    final secretKeyCtrl = TextEditingController();
+    String type = 'photos';
+
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Add Storage Backend'),
+      content: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Display Name')),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(value: type, decoration: const InputDecoration(labelText: 'Type'),
+            items: const [DropdownMenuItem(value: 'photos', child: Text('Photos')), DropdownMenuItem(value: 'videos', child: Text('Videos')), DropdownMenuItem(value: 'drives', child: Text('Drive Files'))],
+            onChanged: (v) { if (v != null) type = v; }),
+          const SizedBox(height: 8),
+          TextField(controller: endpointCtrl, decoration: const InputDecoration(labelText: 'S3 Endpoint')),
+          const SizedBox(height: 8),
+          TextField(controller: regionCtrl, decoration: const InputDecoration(labelText: 'Region')),
+          const SizedBox(height: 8),
+          TextField(controller: bucketCtrl, decoration: const InputDecoration(labelText: 'Bucket Name')),
+          const SizedBox(height: 8),
+          TextField(controller: accessKeyCtrl, decoration: const InputDecoration(labelText: 'Access Key')),
+          const SizedBox(height: 8),
+          TextField(controller: secretKeyCtrl, decoration: const InputDecoration(labelText: 'Secret Key'), obscureText: true),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        FilledButton(onPressed: () async {
+          try {
+            final api = ref.read(apiClientProvider);
+            await api.dio.dio.post(Endpoints.storages, data: {
+              'name': nameCtrl.text, 'storageType': type, 'endpoint': endpointCtrl.text,
+              'region': regionCtrl.text, 'bucket': bucketCtrl.text,
+              'accessKey': accessKeyCtrl.text, 'secretKey': secretKeyCtrl.text,
+            });
+            Navigator.pop(ctx);
+            _loadStorages();
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Storage added')));
+          } catch (e) {
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+          }
+        }, child: const Text('Add')),
       ],
     ));
   }
