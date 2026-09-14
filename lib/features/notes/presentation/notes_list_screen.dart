@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -101,6 +102,20 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen> {
                 ref.read(notesProvider.notifier).selectFolder(null);
                 ref.read(notesProvider.notifier).selectTag(null);
               },
+            ),
+          if (!_showTrash)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (v) {
+                switch (v) {
+                  case 'export_all': _exportAllMarkdown(); break;
+                  case 'import_md': _showImportMarkdown(); break;
+                }
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(value: 'export_all', child: Text('Export all as Markdown')),
+                const PopupMenuItem(value: 'import_md', child: Text('Import Markdown')),
+              ],
             ),
           IconButton(
             icon: Icon(_showTrash ? Icons.delete : Icons.delete_outline),
@@ -392,6 +407,62 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen> {
         if (mounted) context.push('/notes/${note.id}');
       }
     }
+  }
+
+  void _exportAllMarkdown() {
+    final notes = ref.read(notesProvider).filteredNotes;
+    if (notes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No notes to export')));
+      return;
+    }
+    final buffer = StringBuffer();
+    for (final note in notes) {
+      buffer.writeln('# ${note.title}');
+      buffer.writeln();
+      try {
+        final doc = jsonDecode(note.contentJson);
+        final contentNodes = (doc as Map<String, dynamic>)['content'] as List? ?? [];
+        for (final node in contentNodes) {
+          final n = node as Map<String, dynamic>;
+          final type = n['type'] as String? ?? '';
+          final text = _extractNodeTextGlobal(n);
+          switch (type) {
+            case 'heading':
+              final level = (n['attrs'] as Map<String, dynamic>?)?['level'] as int? ?? 1;
+              buffer.writeln('${'#' * level} $text');
+              break;
+            case 'taskItem':
+              final checked = (n['attrs'] as Map<String, dynamic>?)?['checked'] == true;
+              buffer.writeln('- [${checked ? 'x' : ' '}] $text');
+              break;
+            case 'paragraph':
+              buffer.writeln(text);
+              break;
+            default:
+              buffer.writeln(text);
+          }
+        }
+      } catch (_) {
+        buffer.write(note.contentText);
+      }
+      buffer.writeln();
+      buffer.writeln('---');
+      buffer.writeln();
+    }
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Export All Notes'),
+      content: SingleChildScrollView(child: SelectableText(buffer.toString(), style: const TextStyle(fontFamily: 'monospace', fontSize: 11))),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+    ));
+  }
+
+  String _extractNodeTextGlobal(Map<String, dynamic> node) {
+    final content = node['content'] as List?;
+    if (content == null) return '';
+    return content.map((c) {
+      final m = c as Map<String, dynamic>;
+      return m['text'] as String? ?? _extractNodeTextGlobal(m);
+    }).join();
   }
 
   void _duplicateNote(NoteModel note) async {

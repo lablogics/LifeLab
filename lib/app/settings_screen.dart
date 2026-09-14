@@ -8,6 +8,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:dio/dio.dart';
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class SessionModel {
   final String id; final String? userAgent; final bool isCurrent; final int? expiresAt;
@@ -30,7 +31,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _biometricEnabled = false;
   final _localAuth = LocalAuthentication();
   String _language = 'English';
+  String _themeMode = 'system';
   List<Map<String, dynamic>> _storages = [];
+  final _secureStorage = FlutterSecureStorage();
 
   @override
   void initState() {
@@ -38,6 +41,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _load2FaStatus();
     _checkBiometric();
     _loadStorages();
+    _loadThemeMode();
+  }
+
+  Future<void> _loadThemeMode() async {
+    try {
+      final mode = await _secureStorage.read(key: 'themeMode');
+      if (mode != null && mounted) setState(() => _themeMode = mode);
+    } catch (_) {}
+  }
+
+  Future<void> _saveThemeMode(String mode) async {
+    setState(() => _themeMode = mode);
+    try { await _secureStorage.write(key: 'themeMode', value: mode); } catch (_) {}
   }
 
   Future<void> _checkBiometric() async {
@@ -110,7 +126,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           onTap: () { _loadSessions(); _showSessionsDialog(); }),
         const Divider(),
         // Appearance
-        ListTile(leading: const Icon(Icons.palette), title: const Text('Theme'), subtitle: const Text('System default'),
+        ListTile(leading: const Icon(Icons.palette), title: const Text('Theme'), subtitle: Text(_themeMode == 'light' ? 'Light' : _themeMode == 'dark' ? 'Dark' : 'System default'),
           trailing: const Icon(Icons.chevron_right), onTap: _showThemeDialog),
         // Language
         ListTile(leading: const Icon(Icons.language), title: const Text('Language'), subtitle: Text(_language),
@@ -278,9 +294,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(context: context, builder: (ctx) => SimpleDialog(
       title: const Text('Theme'),
       children: [
-        SimpleDialogOption(onPressed: () => Navigator.pop(ctx), child: const Text('System default')),
-        SimpleDialogOption(onPressed: () => Navigator.pop(ctx), child: const Text('Light')),
-        SimpleDialogOption(onPressed: () => Navigator.pop(ctx), child: const Text('Dark')),
+        SimpleDialogOption(onPressed: () { _saveThemeMode('system'); Navigator.pop(ctx); },
+          child: Row(children: [if (_themeMode == 'system') const Icon(Icons.check, size: 16), const SizedBox(width: 8), const Text('System default')])),
+        SimpleDialogOption(onPressed: () { _saveThemeMode('light'); Navigator.pop(ctx); },
+          child: Row(children: [if (_themeMode == 'light') const Icon(Icons.check, size: 16), const SizedBox(width: 8), const Text('Light')])),
+        SimpleDialogOption(onPressed: () { _saveThemeMode('dark'); Navigator.pop(ctx); },
+          child: Row(children: [if (_themeMode == 'dark') const Icon(Icons.check, size: 16), const SizedBox(width: 8), const Text('Dark')])),
       ],
     ));
   }

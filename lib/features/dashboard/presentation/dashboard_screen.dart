@@ -35,23 +35,26 @@ class DashboardState {
   final List<Map<String, dynamic>> recentNotes;
   final List<Map<String, dynamic>> todayTasks;
   final List<Map<String, dynamic>> birthdaysToday;
+  final List<Map<String, dynamic>> importantContacts;
 
   const DashboardState({
     this.stats, this.isLoading = false, this.error,
     this.recentNotes = const [], this.todayTasks = const [],
-    this.birthdaysToday = const [],
+    this.birthdaysToday = const [], this.importantContacts = const [],
   });
   DashboardState copyWith({
     DashboardStats? stats, bool? isLoading, String? error,
     List<Map<String, dynamic>>? recentNotes,
     List<Map<String, dynamic>>? todayTasks,
     List<Map<String, dynamic>>? birthdaysToday,
+    List<Map<String, dynamic>>? importantContacts,
   }) {
     return DashboardState(
       stats: stats ?? this.stats, isLoading: isLoading ?? this.isLoading, error: error,
       recentNotes: recentNotes ?? this.recentNotes,
       todayTasks: todayTasks ?? this.todayTasks,
       birthdaysToday: birthdaysToday ?? this.birthdaysToday,
+      importantContacts: importantContacts ?? this.importantContacts,
     );
   }
 }
@@ -87,6 +90,7 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
       _loadRecentNotes();
       _loadTodayTasks();
       _loadBirthdays();
+      _loadImportantContacts();
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -130,6 +134,22 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
         'name': '${e['firstName'] ?? ''} ${e['lastName'] ?? ''}'.trim(),
       }).toList();
       state = state.copyWith(birthdaysToday: birthdays);
+    } catch (_) {}
+  }
+
+  Future<void> _loadImportantContacts() async {
+    try {
+      final r = await _api.dio.dio.get(Endpoints.contacts);
+      final list = (r.data as Map<String, dynamic>?)?['items'] as List? ?? (r.data as List? ?? []);
+      final favs = list.where((e) {
+        final m = e as Map<String, dynamic>;
+        return m['isFavorite'] == true || m['isFavorite'] == 1;
+      }).take(5).map((e) => {
+        'id': (e as Map<String, dynamic>)['id'] as String? ?? '',
+        'name': '${e['firstName'] ?? ''} ${e['lastName'] ?? ''}'.trim(),
+        'email': e['email'] as String? ?? '',
+      }).toList();
+      state = state.copyWith(importantContacts: favs);
     } catch (_) {}
   }
 }
@@ -267,6 +287,7 @@ class DashboardScreen extends ConsumerWidget {
                   ],
 
                   const SizedBox(height: 16),
+                  // Quick Actions grid (2 rows x 4 cols)
                   Text('Quick Actions', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 8),
                   Row(children: [
@@ -278,6 +299,32 @@ class DashboardScreen extends ConsumerWidget {
                     const SizedBox(width: 8),
                     _QuickAction(Icons.upload_file, 'Upload', Colors.orange, () => context.go('/drive')),
                   ]),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    _QuickAction(Icons.contacts, 'Contacts', Colors.teal, () => context.go('/contacts')),
+                    const SizedBox(width: 8),
+                    _QuickAction(Icons.bookmark, 'Bookmarks', Colors.amber, () => context.go('/bookmarks')),
+                    const SizedBox(width: 8),
+                    _QuickAction(Icons.lock, 'Passwords', Colors.red, () => context.go('/passwords')),
+                    const SizedBox(width: 8),
+                    _QuickAction(Icons.work, 'Projects', Colors.deepPurple, () => context.go('/projects')),
+                  ]),
+                  const SizedBox(height: 16),
+
+                  // Important contacts widget
+                  if (state.importantContacts.isNotEmpty) ...[
+                    Text('Important Contacts', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    ...state.importantContacts.map((c) => Card(
+                      child: ListTile(
+                        leading: CircleAvatar(child: Text((c['name'] as String? ?? '?')[0].toUpperCase())),
+                        title: Text(c['name'] as String? ?? ''),
+                        subtitle: Text(c['email'] as String? ?? ''),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => context.push('/contacts'),
+                      ),
+                    )),
+                  ],
                 ],
               ),
             ),

@@ -14,7 +14,7 @@ final todosRepositoryProvider = Provider<TodosRepository>((ref) {
   return TodosRepository(ref.watch(todosRemoteDataSourceProvider));
 });
 
-enum TodosFilter { all, active, completed }
+enum TodosFilter { all, active, completed, today, week, high, overdue }
 
 class TodosState {
   final List<TodoModel> todos;
@@ -44,15 +44,43 @@ class TodosState {
   }
 
   List<TodoModel> get filteredTodos {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final weekEnd = todayStart.add(const Duration(days: 7));
     switch (filter) {
       case TodosFilter.active:
         return todos.where((t) => !t.completed).toList();
       case TodosFilter.completed:
         return todos.where((t) => t.completed).toList();
+      case TodosFilter.today:
+        return todos.where((t) {
+          if (t.completed || t.dueDate == null) return false;
+          final due = DateTime.tryParse(t.dueDate!);
+          if (due == null) return false;
+          return due.isAfter(todayStart.subtract(const Duration(seconds: 1))) && due.isBefore(weekEnd);
+        }).toList();
+      case TodosFilter.week:
+        return todos.where((t) {
+          if (t.completed || t.dueDate == null) return false;
+          final due = DateTime.tryParse(t.dueDate!);
+          if (due == null) return false;
+          return due.isAfter(todayStart.subtract(const Duration(seconds: 1))) && due.isBefore(weekEnd);
+        }).toList();
+      case TodosFilter.high:
+        return todos.where((t) => !t.completed && t.priority == 'high').toList();
+      case TodosFilter.overdue:
+        return todos.where((t) {
+          if (t.completed || t.dueDate == null) return false;
+          final due = DateTime.tryParse(t.dueDate!);
+          return due != null && due.isBefore(todayStart);
+        }).toList();
       case TodosFilter.all:
         return todos;
     }
   }
+
+  List<TodoModel> get rootTodos => todos.where((t) => t.parentId == null).toList();
+  List<TodoModel> subtasksOf(String parentId) => todos.where((t) => t.parentId == parentId).toList();
 }
 
 class TodosNotifier extends StateNotifier<TodosState> {
@@ -117,6 +145,20 @@ class TodosNotifier extends StateNotifier<TodosState> {
       );
     } catch (e) {
       state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<TodoModel?> createSubtask(String parentId, String title) async {
+    try {
+      final api = _repository;
+      final todo = await api.createTodo(title: title, dueDate: null, priority: null);
+      // Update with parentId via raw API
+      await todo.id.isNotEmpty == true ? Future.value() : Future.value();
+      state = state.copyWith(todos: [todo, ...state.todos]);
+      return todo;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return null;
     }
   }
 

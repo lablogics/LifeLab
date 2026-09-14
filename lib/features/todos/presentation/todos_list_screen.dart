@@ -37,6 +37,11 @@ class _TodosListScreenState extends ConsumerState<TodosListScreen> {
         title: const Text('Todos'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.calendar_month),
+            tooltip: 'Calendar view',
+            onPressed: () => _showCalendarView(context, todosState),
+          ),
+          IconButton(
             icon: const Icon(Icons.add),
             tooltip: 'Add todo',
             onPressed: () => setState(() => _showInput = true),
@@ -45,8 +50,9 @@ class _TodosListScreenState extends ConsumerState<TodosListScreen> {
       ),
       body: Column(
         children: [
-          // Filter chips
-          Padding(
+          // Filter chips (scrollable for smart filters)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: TodosFilter.values.map((filter) {
@@ -55,11 +61,16 @@ class _TodosListScreenState extends ConsumerState<TodosListScreen> {
                   TodosFilter.all => 'All',
                   TodosFilter.active => 'Active',
                   TodosFilter.completed => 'Done',
+                  TodosFilter.today => 'Today',
+                  TodosFilter.week => 'This Week',
+                  TodosFilter.high => 'High Priority',
+                  TodosFilter.overdue => 'Overdue',
                 };
                 final count = switch (filter) {
                   TodosFilter.all => todosState.todos.length,
                   TodosFilter.active => todosState.todos.where((t) => !t.completed).length,
                   TodosFilter.completed => todosState.todos.where((t) => t.completed).length,
+                  _ => todosState.filteredTodos.length,
                 };
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
@@ -140,14 +151,17 @@ class _TodosListScreenState extends ConsumerState<TodosListScreen> {
                             onRefresh: () => ref.read(todosProvider.notifier).loadTodos(),
                             child: ListView.builder(
                               padding: const EdgeInsets.symmetric(horizontal: 16),
-                              itemCount: filtered.length,
+                              itemCount: filtered.where((t) => t.parentId == null).length,
                               itemBuilder: (context, index) {
-                                final todo = filtered[index];
+                                final todo = filtered.where((t) => t.parentId == null).toList()[index];
+                                final subtasks = todosState.subtasksOf(todo.id).where((t) => filtered.contains(t)).toList();
                                 return _TodoTile(
                                   todo: todo,
+                                  subtasks: subtasks,
                                   onToggle: () => ref.read(todosProvider.notifier).toggleTodo(todo.id),
                                   onDelete: () => _confirmDelete(context, todo),
                                   onEdit: () => _editTodo(context, todo),
+                                  onAddSubtask: () => _addSubtask(context, todo),
                                 );
                               },
                             ),
@@ -198,6 +212,60 @@ class _TodosListScreenState extends ConsumerState<TodosListScreen> {
     }
   }
 
+  void _showCalendarView(BuildContext context, TodosState todosState) {
+    final now = DateTime.now();
+    final todosWithDue = todosState.todos.where((t) => t.dueDate != null && !t.completed).toList();
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7, minChildSize: 0.4, maxChildSize: 0.9, expand: false,
+        builder: (ctx, scrollController) => Column(children: [
+          Padding(padding: const EdgeInsets.all(16), child: Text('Calendar View', style: Theme.of(ctx).textTheme.titleLarge)),
+          Expanded(child: ListView.builder(
+            controller: scrollController,
+            itemCount: 14,
+            itemBuilder: (ctx, i) {
+              final day = now.add(Duration(days: i));
+              final dayStr = '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+              final dayTodos = todosWithDue.where((t) => t.dueDate!.startsWith(dayStr)).toList();
+              if (dayTodos.isEmpty && i > 0) return const SizedBox.shrink();
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 4), child: Text(
+                  i == 0 ? 'Today' : i == 1 ? 'Tomorrow' : '${day.weekday.toString().substring(0, 3)} ${day.day}/${day.month}',
+                  style: Theme.of(ctx).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+                )),
+                ...dayTodos.map((t) => ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.circle, size: 8),
+                  title: Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: t.priority != 'none' ? Text('Priority: ${t.priority}') : null,
+                )),
+              ]);
+            },
+          )),
+        ]),
+      ),
+    );
+  }
+
+  void _addSubtask(BuildContext context, TodoModel parent) async {
+    final controller = TextEditingController();
+    final title = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Subtask of "${parent.title}"'),
+        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(hintText: 'Subtask title')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Add')),
+        ],
+      ),
+    );
+    if (title != null && title.isNotEmpty) {
+      await ref.read(todosProvider.notifier).createSubtask(parent.id, title);
+    }
+  }
+
   void _editTodo(BuildContext context, TodoModel todo) async {
     final controller = TextEditingController(text: todo.title);
     final result = await showDialog<String>(
@@ -222,15 +290,19 @@ class _TodosListScreenState extends ConsumerState<TodosListScreen> {
 
 class _TodoTile extends StatelessWidget {
   final TodoModel todo;
+  final List<TodoModel> subtasks;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
+  final VoidCallback? onAddSubtask;
 
   const _TodoTile({
     required this.todo,
+    this.subtasks = const [],
     required this.onToggle,
     required this.onDelete,
     required this.onEdit,
+    this.onAddSubtask,
   });
 
   @override
@@ -254,70 +326,95 @@ class _TodoTile extends StatelessWidget {
         child: const Icon(Icons.delete, color: Colors.red),
       ),
       onDismissed: (_) => onDelete(),
-      child: Card(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          child: Row(
-            children: [
-              Checkbox(
-                value: todo.completed,
-                onChanged: (_) => onToggle,
-              ),
-              Expanded(
-                child: InkWell(
-                  onTap: onEdit,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        todo.title,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          decoration: todo.completed ? TextDecoration.lineThrough : null,
-                          color: todo.completed ? theme.colorScheme.outline : null,
-                        ),
-                      ),
-                      if (todo.dueDate != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.calendar_today,
-                                size: 12,
-                                color: isOverdue ? Colors.red : theme.colorScheme.outline,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                todo.dueDate!,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: isOverdue ? Colors.red : theme.colorScheme.outline,
-                                ),
-                              ),
-                            ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Card(
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Row(
+                children: [
+                  Checkbox(
+                    value: todo.completed,
+                    onChanged: (_) => onToggle(),
+                  ),
+                  Expanded(
+                    child: InkWell(
+                      onTap: onEdit,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            todo.title,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              decoration: todo.completed ? TextDecoration.lineThrough : null,
+                              color: todo.completed ? theme.colorScheme.outline : null,
+                            ),
                           ),
-                        ),
-                    ],
+                          if (todo.dueDate != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.calendar_today,
+                                    size: 12,
+                                    color: isOverdue ? Colors.red : theme.colorScheme.outline,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    todo.dueDate!,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: isOverdue ? Colors.red : theme.colorScheme.outline,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              if (todo.priority != 'none')
-                Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: Icon(
-                    Icons.flag,
-                    size: 16,
-                    color: _priorityColor(todo.priority),
+                  if (todo.priority != 'none')
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Icon(
+                        Icons.flag,
+                        size: 16,
+                        color: _priorityColor(todo.priority),
+                      ),
+                    ),
+                  if (onAddSubtask != null)
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline, size: 18),
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Add subtask',
+                      onPressed: onAddSubtask,
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.more_vert, size: 20),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _showOptions(context),
                   ),
-                ),
-              IconButton(
-                icon: const Icon(Icons.more_vert, size: 20),
-                visualDensity: VisualDensity.compact,
-                onPressed: () => _showOptions(context),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+          if (subtasks.isNotEmpty)
+            ...subtasks.map((st) => Padding(
+              padding: const EdgeInsets.only(left: 32, right: 16),
+              child: Card(
+                margin: const EdgeInsets.symmetric(vertical: 2),
+                color: theme.colorScheme.surfaceContainerLow,
+                child: ListTile(
+                  dense: true,
+                  leading: Checkbox(value: st.completed, onChanged: (_) {}, visualDensity: VisualDensity.compact),
+                  title: Text(st.title, style: TextStyle(decoration: st.completed ? TextDecoration.lineThrough : null), maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              ),
+            )),
+        ],
       ),
     );
   }

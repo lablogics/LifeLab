@@ -8,11 +8,40 @@ class ContactsState {
   final List<ContactModel> contacts;
   final bool isLoading;
   final String? error;
+  final String searchQuery;
+  final bool showFavoritesOnly;
 
-  const ContactsState({this.contacts = const [], this.isLoading = false, this.error});
+  const ContactsState({
+    this.contacts = const [], this.isLoading = false, this.error,
+    this.searchQuery = '', this.showFavoritesOnly = false,
+  });
 
-  ContactsState copyWith({List<ContactModel>? contacts, bool? isLoading, String? error}) {
-    return ContactsState(contacts: contacts ?? this.contacts, isLoading: isLoading ?? this.isLoading, error: error);
+  ContactsState copyWith({
+    List<ContactModel>? contacts, bool? isLoading, String? error,
+    String? searchQuery, bool? showFavoritesOnly,
+  }) {
+    return ContactsState(
+      contacts: contacts ?? this.contacts,
+      isLoading: isLoading ?? this.isLoading,
+      error: error,
+      searchQuery: searchQuery ?? this.searchQuery,
+      showFavoritesOnly: showFavoritesOnly ?? this.showFavoritesOnly,
+    );
+  }
+
+  List<ContactModel> get filteredContacts {
+    var result = contacts;
+    if (showFavoritesOnly) result = result.where((c) => c.isFavorite).toList();
+    if (searchQuery.isNotEmpty) {
+      final q = searchQuery.toLowerCase();
+      result = result.where((c) =>
+        c.displayName.toLowerCase().contains(q) ||
+        c.email.toLowerCase().contains(q) ||
+        c.phone.contains(q) ||
+        c.company.toLowerCase().contains(q)
+      ).toList();
+    }
+    return result;
   }
 }
 
@@ -28,6 +57,9 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
       state = state.copyWith(contacts: list, isLoading: false);
     } catch (e) { state = state.copyWith(isLoading: false, error: e.toString()); }
   }
+
+  void setSearch(String q) => state = state.copyWith(searchQuery: q);
+  void toggleFavoritesOnly() => state = state.copyWith(showFavoritesOnly: !state.showFavoritesOnly);
 
   Future<void> createContact(ContactModel c) async {
     try {
@@ -47,6 +79,16 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
     try {
       await _api.dio.dio.delete('${Endpoints.contacts}/$id');
       await loadContacts();
+    } catch (e) { state = state.copyWith(error: e.toString()); }
+  }
+
+  Future<void> toggleFavorite(String id) async {
+    try {
+      final contact = state.contacts.firstWhere((c) => c.id == id);
+      await _api.dio.dio.put('${Endpoints.contacts}/$id', data: {'isFavorite': !contact.isFavorite});
+      state = state.copyWith(
+        contacts: state.contacts.map((c) => c.id == id ? c.copyWith(isFavorite: !c.isFavorite) : c).toList(),
+      );
     } catch (e) { state = state.copyWith(error: e.toString()); }
   }
 

@@ -332,6 +332,53 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
     }
   }
 
+
+  // ── Tag picker ──
+  void _showTagPicker() async {
+    try {
+      await ref.read(tagsProvider.notifier).loadTags();
+      if (!mounted) return;
+      final allTags = ref.read(tagsProvider).tags;
+      showModalBottomSheet(
+        context: context,
+        builder: (ctx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(padding: EdgeInsets.all(16), child: Text('Tags', style: TextStyle(fontWeight: FontWeight.bold))),
+              if (allTags.isEmpty)
+                const Padding(padding: EdgeInsets.all(24), child: Text('No tags available'))
+              else
+                ...allTags.map((tag) => ListTile(
+                  leading: CircleAvatar(backgroundColor: _tagColor(tag.color), radius: 12),
+                  title: Text(tag.name),
+                  trailing: const Icon(Icons.add, size: 16),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    try {
+                      final api = ref.read(apiClientProvider);
+                      await api.dio.dio.post('${Endpoints.notes}/${widget.noteId}/tags', data: {'tagId': tag.id});
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Tag "${tag.name}" added')));
+                    } catch (e) {
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+                    }
+                  },
+                )),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load tags: $e')));
+    }
+  }
+
+  Color _tagColor(String colorName) {
+    const map = {'gray': Colors.grey, 'red': Colors.red, 'orange': Colors.orange, 'yellow': Colors.amber, 'green': Colors.green, 'blue': Colors.blue, 'purple': Colors.purple, 'pink': Colors.pink};
+    return map[colorName] ?? Colors.grey;
+  }
+
   void dispose() { _titleController.dispose(); _contentController.dispose(); super.dispose(); }
 
   @override
@@ -395,6 +442,10 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
                 _toolBtn(Icons.format_bold, 'Bold', () => _wrapSelection('**', '**')),
                 _toolBtn(Icons.format_italic, 'Italic', () => _wrapSelection('*', '*')),
                 _toolBtn(Icons.format_strikethrough, 'Strike', () => _wrapSelection('~~', '~~')),
+                _toolBtn(Icons.format_underline, 'Underline', () => _wrapSelection('__', '__')),
+                _toolBtn(Icons.highlight, 'Highlight', () => _wrapSelection('==', '==')),
+                _toolBtn(Icons.code, 'Code', () => _wrapSelection('`', '`')),
+                _toolBtn(Icons.format_quote, 'Quote', () => _prependLine('> ')),
                 _toolBtn(Icons.title, 'H1', () => _prependLine('# ')),
                 _toolBtn(Icons.title, 'H2', () => _prependLine('## ')),
                 _toolBtn(Icons.format_list_bulleted, 'List', () => _prependLine('- ')),
@@ -405,6 +456,7 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
                 _toolBtn(Icons.attach_file, 'Attach', _attachFile),
                 _toolBtn(Icons.mic, 'Voice', _showVoiceRecording),
                 _toolBtn(Icons.brush, 'Draw', _showDrawingCanvas),
+                _toolBtn(Icons.label_outline, 'Tags', _showTagPicker),
               ]),
             ),
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../data/photos_providers.dart';
@@ -115,6 +116,8 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
           ] else ...[
             IconButton(icon: const Icon(Icons.checklist), tooltip: 'Select', onPressed: () => setState(() => _bulkMode = true)),
             IconButton(icon: const Icon(Icons.date_range), tooltip: 'Jump to date', onPressed: _showJumpToDate),
+            IconButton(icon: const Icon(Icons.photo_album), tooltip: 'Albums', onPressed: () => _showAlbums(context)),
+            IconButton(icon: const Icon(Icons.face), tooltip: 'People', onPressed: () => _showPeople(context)),
             IconButton(icon: const Icon(Icons.refresh), onPressed: () => ref.read(photosProvider.notifier).refresh()),
           ],
         ],
@@ -203,22 +206,203 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
   }
 
   void _showPhotoDetail(PhotoModel photo) {
-    showModalBottomSheet(context: context, builder: (ctx) => Padding(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Text(photo.name, style: Theme.of(ctx).textTheme.titleMedium),
-      const SizedBox(height: 8),
-      if (photo.size != null) Text(_formatPhotoSize(photo.size)),
-      if (photo.width != null) Text('Dimensions: ${photo.width}x${photo.height}'),
-      if (photo.cameraModel != null) Text('Camera: ${photo.cameraModel}'),
-      if (photo.takenAt != null) Text('Taken: ${DateTime.fromMillisecondsSinceEpoch(photo.takenAt!).toLocal()}'),
-      if (photo.latitude != null) Text('Location: ${photo.latitude}, ${photo.longitude}'),
-      const SizedBox(height: 16),
-      Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-        IconButton(icon: Icon(photo.starred ? Icons.star : Icons.star_border), onPressed: () { ref.read(photosProvider.notifier).toggleStar(photo.id); Navigator.pop(ctx); }),
-        IconButton(icon: Icon(photo.favorite ? Icons.favorite : Icons.favorite_border, color: photo.favorite ? Colors.red : null), onPressed: () { ref.read(photosProvider.notifier).toggleFavorite(photo.id); }),
-        IconButton(icon: const Icon(Icons.share), onPressed: () { showDialog(context: context, builder: (_) => PhotoShareDialog(photoId: photo.id, photoName: photo.name)); }),
-        IconButton(icon: const Icon(Icons.delete_outline), onPressed: () { ref.read(photosProvider.notifier).trashPhoto(photo.id); Navigator.pop(ctx); }),
-        if (photo.trashed) IconButton(icon: const Icon(Icons.restore), onPressed: () { ref.read(photosProvider.notifier).restorePhoto(photo.id); Navigator.pop(ctx); }),
-      ]),
-    ])));
+    final theme = Theme.of(context);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6, minChildSize: 0.3, maxChildSize: 0.9, expand: false,
+        builder: (ctx, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(16),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Header
+            Row(children: [
+              Expanded(child: Text(photo.name, style: theme.textTheme.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis)),
+              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+            ]),
+            const SizedBox(height: 16),
+            // Photo info panel
+            Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (photo.size != null) _infoRow(Icons.data_usage, 'Size', _formatPhotoSize(photo.size)),
+              if (photo.width != null && photo.height != null) _infoRow(Icons.aspect_ratio, 'Dimensions', '${photo.width} x ${photo.height}'),
+              if (photo.mimeType != null) _infoRow(Icons.insert_drive_file, 'Type', photo.mimeType!),
+              if (photo.cameraModel != null) _infoRow(Icons.camera_alt, 'Camera', photo.cameraModel!),
+              if (photo.takenAt != null) _infoRow(Icons.date_range, 'Taken', DateTime.fromMillisecondsSinceEpoch(photo.takenAt!).toLocal().toString().substring(0, 16)),
+              if (photo.latitude != null && photo.longitude != null) _infoRow(Icons.location_on, 'Location', '${photo.latitude!.toStringAsFixed(4)}, ${photo.longitude!.toStringAsFixed(4)}'),
+            ]))),
+            const SizedBox(height: 16),
+            // Actions
+            Text('Actions', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 8),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+              _actionBtn(Icons.star, photo.starred ? 'Starred' : 'Star',
+                color: photo.starred ? Colors.amber : null,
+                onPressed: () { ref.read(photosProvider.notifier).toggleStar(photo.id); Navigator.pop(ctx); }),
+              _actionBtn(Icons.favorite, photo.favorite ? 'Favorited' : 'Favorite',
+                color: photo.favorite ? Colors.red : null,
+                onPressed: () { ref.read(photosProvider.notifier).toggleFavorite(photo.id); Navigator.pop(ctx); }),
+              _actionBtn(Icons.share, 'Share',
+                onPressed: () { Navigator.pop(ctx); showDialog(context: context, builder: (_) => PhotoShareDialog(photoId: photo.id, photoName: photo.name)); }),
+              _actionBtn(Icons.edit, 'Edit',
+                onPressed: () { Navigator.pop(ctx); context.push('/photos/${photo.id}/edit'); }),
+              if (photo.trashed)
+                _actionBtn(Icons.restore, 'Restore',
+                  onPressed: () { ref.read(photosProvider.notifier).restorePhoto(photo.id); Navigator.pop(ctx); })
+              else
+                _actionBtn(Icons.delete_outline, 'Trash', color: Colors.red,
+                  onPressed: () { ref.read(photosProvider.notifier).trashPhoto(photo.id); Navigator.pop(ctx); }),
+            ]),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String label, String value) {
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
+      Icon(icon, size: 16, color: Theme.of(context).colorScheme.outline),
+      const SizedBox(width: 8),
+      Text('$label: ', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
+      Expanded(child: Text(value, style: Theme.of(context).textTheme.bodySmall)),
+    ]));
+  }
+
+  Widget _actionBtn(IconData icon, String label, {Color? color, required VoidCallback onPressed}) {
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      IconButton(icon: Icon(icon, color: color), onPressed: onPressed),
+      Text(label, style: Theme.of(context).textTheme.labelSmall),
+    ]);
+  }
+
+  void _showAlbums(BuildContext context) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.dio.dio.get('${Endpoints.photos}/albums');
+      final albums = ((r.data as Map<String, dynamic>)['items'] as List? ?? []).cast<Map<String, dynamic>>();
+      if (!mounted) return;
+      showModalBottomSheet(
+        context: context,
+        builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(padding: const EdgeInsets.all(16), child: Row(children: [
+            Text('Albums', style: Theme.of(ctx).textTheme.titleLarge),
+            const Spacer(),
+            IconButton(icon: const Icon(Icons.add), onPressed: () { Navigator.pop(ctx); _createAlbum(context); }),
+          ])),
+          Expanded(child: albums.isEmpty
+            ? const Center(child: Text('No albums'))
+            : ListView.builder(
+                shrinkWrap: true,
+                itemCount: albums.length,
+                itemBuilder: (_, i) {
+                  final a = albums[i];
+                  return ListTile(
+                    leading: const Icon(Icons.photo_album),
+                    title: Text(a['name'] as String? ?? 'Album'),
+                    subtitle: Text('${a['photoCount'] ?? 0} photos'),
+                    trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () async {
+                      await api.dio.dio.delete('${Endpoints.photos}/albums/${a['id']}');
+                      Navigator.pop(ctx);
+                    }),
+                    onTap: () { Navigator.pop(ctx); _showAlbumDetail(context, a); },
+                  );
+                },
+              )),
+          const SizedBox(height: 8),
+        ])),
+      );
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    }
+  }
+
+  void _createAlbum(BuildContext context) async {
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('New Album'),
+        content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: 'Album name')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Create')),
+        ],
+      ),
+    );
+    if (name != null && name.isNotEmpty) {
+      try {
+        final api = ref.read(apiClientProvider);
+        await api.dio.dio.post('${Endpoints.photos}/albums', data: {'name': name});
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Album created')));
+      } catch (_) {}
+    }
+  }
+
+  void _showAlbumDetail(BuildContext context, Map<String, dynamic> album) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.dio.dio.get('${Endpoints.photos}/albums/${album['id']}/photos');
+      final photos = ((r.data as Map<String, dynamic>)['items'] as List? ?? (r.data as List? ?? []))
+        .map((e) => PhotoModel.fromJson(e as Map<String, dynamic>)).toList();
+      if (!mounted) return;
+      Navigator.push(context, MaterialPageRoute(builder: (_) => Scaffold(
+        appBar: AppBar(title: Text(album['name'] as String? ?? 'Album')),
+        body: photos.isEmpty
+          ? const Center(child: Text('No photos in this album'))
+          : GridView.builder(
+              padding: const EdgeInsets.all(4),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 4, crossAxisSpacing: 4),
+              itemCount: photos.length,
+              itemBuilder: (_, i) {
+                final p = photos[i];
+                return Container(
+                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(8)),
+                  child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.image, color: Theme.of(context).colorScheme.outline),
+                    const SizedBox(height: 4),
+                    Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelSmall),
+                  ])),
+                );
+              },
+            ),
+      )));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    }
+  }
+
+  void _showPeople(BuildContext context) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.dio.dio.get('${Endpoints.faces}/people');
+      final people = ((r.data as Map<String, dynamic>)['items'] as List? ?? (r.data as List? ?? [])).cast<Map<String, dynamic>>();
+      if (!mounted) return;
+      showModalBottomSheet(
+        context: context,
+        builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(padding: EdgeInsets.all(16), child: Text('People', style: TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(child: people.isEmpty
+            ? const Center(child: Text('No people detected'))
+            : GridView.builder(
+                shrinkWrap: true,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 8, crossAxisSpacing: 8),
+                padding: const EdgeInsets.all(16),
+                itemCount: people.length,
+                itemBuilder: (_, i) {
+                  final p = people[i];
+                  return Column(mainAxisSize: MainAxisSize.min, children: [
+                    CircleAvatar(radius: 28, child: Icon(Icons.face, size: 28)),
+                    const SizedBox(height: 4),
+                    Text(p['name'] as String? ?? 'Unknown', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(ctx).textTheme.labelSmall),
+                    Text('${p['photoCount'] ?? 0} photos', style: Theme.of(ctx).textTheme.labelSmall?.copyWith(color: Theme.of(ctx).colorScheme.outline)),
+                  ]);
+                },
+              )),
+          const SizedBox(height: 8),
+        ])),
+      );
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    }
   }
 }
