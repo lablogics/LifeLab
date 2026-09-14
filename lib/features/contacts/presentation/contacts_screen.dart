@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
 import '../data/contacts_providers.dart';
 import '../data/models/contact_model.dart';
+import 'package:lifelab_core/api/endpoints.dart';
+import 'package:lifelab_core/di/core_providers.dart';
 
 class ContactsScreen extends ConsumerStatefulWidget {
   const ContactsScreen({super.key});
@@ -38,6 +41,11 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
             icon: const Icon(Icons.file_upload),
             tooltip: 'Import CSV/JSON',
             onPressed: () => _importFromFile(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.file_download),
+            tooltip: 'Export contacts',
+            onPressed: () => _exportContacts(),
           ),
         ],
         bottom: PreferredSize(
@@ -136,12 +144,37 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
             if (contact.email.isNotEmpty) ListTile(leading: const Icon(Icons.email), title: Text(contact.email), onTap: () {}),
             if (contact.phone.isNotEmpty) ListTile(leading: const Icon(Icons.phone), title: Text(contact.phone)),
             if (contact.address.isNotEmpty) ListTile(leading: const Icon(Icons.location_on), title: Text(contact.address)),
-            if (contact.birthday.isNotEmpty) ListTile(leading: const Icon(Icons.cake), title: Text('Birthday: ${contact.birthday}')),
+            if (contact.birthday.isNotEmpty) ...[
+              ListTile(
+                leading: const Icon(Icons.cake),
+                title: Text('Birthday: ${contact.birthday}'),
+                subtitle: Text(_birthdayAge(contact.birthday)),
+              ),
+            ],
             if (contact.notes.isNotEmpty) ...[
               const Divider(),
               Padding(padding: const EdgeInsets.all(16), child: Text('Notes', style: theme.textTheme.titleSmall)),
               Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text(contact.notes)),
             ],
+            const Divider(),
+            // Related data section
+            Padding(padding: const EdgeInsets.all(16), child: Text('Related', style: theme.textTheme.titleSmall)),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Column(children: [
+              ListTile(
+                leading: const Icon(Icons.note, size: 20),
+                title: const Text('Link a Note'),
+                trailing: const Icon(Icons.chevron_right, size: 16),
+                contentPadding: EdgeInsets.zero,
+                onTap: () { Navigator.pop(ctx); _linkNoteToContact(context, contact); },
+              ),
+              ListTile(
+                leading: const Icon(Icons.message, size: 20),
+                title: const Text('Shared Files'),
+                trailing: const Icon(Icons.chevron_right, size: 16),
+                contentPadding: EdgeInsets.zero,
+                onTap: () { _showSharedFiles(context, contact); },
+              ),
+            ])),
             const SizedBox(height: 8),
             Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
               FilledButton.tonal(onPressed: () { Navigator.pop(ctx); context.push('/contacts/${contact.id}/messages'); }, child: const Text('Message')),
@@ -255,6 +288,85 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
       ref.read(contactsProvider.notifier).importContacts(content);
     }
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Importing contacts...')));
+  }
+
+  String _birthdayAge(String birthday) {
+    try {
+      final parts = birthday.split('-');
+      if (parts.length < 3) return '';
+      final year = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      final day = int.tryParse(parts[2]);
+      if (year == null || month == null || day == null) return '';
+      final bday = DateTime(year, month, day);
+      final now = DateTime.now();
+      int age = now.year - bday.year;
+      if (now.month < bday.month || (now.month == bday.month && now.day < bday.day)) age--;
+      final upcoming = DateTime(now.year, bday.month, bday.day);
+      final daysUntil = upcoming.isBefore(now) ? upcoming.add(const Duration(days: 365)).difference(now).inDays : upcoming.difference(now).inDays;
+      return 'Age $age · Birthday in $daysUntil days';
+    } catch (_) { return ''; }
+  }
+
+  void _exportContacts() async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.dio.dio.get(Endpoints.contacts);
+      final list = (r.data as Map<String, dynamic>?)?['items'] as List? ?? (r.data as List? ?? []);
+      if (list.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No contacts to export')));
+        return;
+      }
+      // Export as JSON
+      final jsonStr = const JsonEncoder.withIndent('  ').convert(list);
+      if (mounted) {
+        showDialog(context: context, builder: (ctx) => AlertDialog(
+          title: const Text('Export Contacts'),
+          content: SingleChildScrollView(child: SelectableText(jsonStr, style: const TextStyle(fontFamily: 'monospace', fontSize: 10))),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          ],
+        ));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    }
+  }
+
+  void _linkNoteToContact(BuildContext context, ContactModel contact) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.dio.dio.get(Endpoints.notes, queryParameters: {'limit': 50});
+      final notes = (r.data as Map<String, dynamic>?)?['items'] as List? ?? (r.data as List? ?? []);
+      if (!mounted) return;
+      final selectedNote = await showDialog<String>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: const Text('Link Note'),
+          children: (notes as List).cast<Map<String, dynamic>>().map((n) => SimpleDialogOption(
+            child: Text(n['title'] as String? ?? 'Untitled'),
+            onPressed: () => Navigator.pop(ctx, n['id'] as String),
+          )).toList(),
+        ),
+      );
+      if (selectedNote != null) {
+        await api.dio.dio.post('${Endpoints.contacts}/${contact.id}/links', data: {'noteId': selectedNote, 'type': 'note'});
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Note linked')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    }
+  }
+
+  void _showSharedFiles(BuildContext context, ContactModel contact) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Padding(padding: EdgeInsets.all(16), child: Text('Shared Files', style: TextStyle(fontWeight: FontWeight.bold))),
+        const Padding(padding: EdgeInsets.all(16), child: Text('No shared files with this contact')),
+        const SizedBox(height: 8),
+      ])),
+    );
   }
 }
 

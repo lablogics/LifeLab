@@ -16,6 +16,7 @@ class DriveScreen extends ConsumerStatefulWidget {
 class _DriveScreenState extends ConsumerState<DriveScreen> {
   String? _selectedStorageId;
   bool _isGridView = false;
+  String _searchQuery = '';
 
   String _formatSize(int? bytes) {
     if (bytes == null) return '';
@@ -58,6 +59,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
           IconButton(icon: Icon(drive.starred ? Icons.star : Icons.star_border), tooltip: 'Starred', onPressed: () => ref.read(driveProvider.notifier).setStarredView(!drive.starred)),
           IconButton(icon: Icon(drive.trashed ? Icons.delete : Icons.delete_outline), tooltip: 'Trash', onPressed: () => ref.read(driveProvider.notifier).setTrashView(!drive.trashed)),
           if (drive.trashed) IconButton(icon: const Icon(Icons.delete_sweep), tooltip: 'Empty trash', onPressed: _emptyTrash),
+          IconButton(icon: const Icon(Icons.search), tooltip: 'Search', onPressed: () => _showSearchDialog(context, drive)),
         ],
       ),
       body: _selectedStorageId == null
@@ -135,7 +137,10 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       trailing: PopupMenuButton<String>(
         onSelected: (v) => _handleItemAction(v, item),
         itemBuilder: (_) => [
-          if (!isFolder) const PopupMenuItem(value: 'open', child: Text('Open')),
+          if (!isFolder) ...[
+            const PopupMenuItem(value: 'open', child: Text('Open')),
+            const PopupMenuItem(value: 'preview', child: Text('Preview')),
+          ],
           const PopupMenuItem(value: 'rename', child: Text('Rename')),
           const PopupMenuItem(value: 'star', child: Text('Star')),
           if (ref.read(driveProvider).trashed) const PopupMenuItem(value: 'restore', child: Text('Restore')),
@@ -241,6 +246,9 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       case 'open':
         _openFile(item);
         break;
+      case 'preview':
+        _previewFile(item);
+        break;
       case 'rename':
         final ctrl = TextEditingController(text: item.name);
         showDialog(context: context, builder: (ctx) => AlertDialog(
@@ -275,5 +283,34 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
         ));
         break;
     }
+  }
+
+  void _previewFile(DriveItem item) {
+    final ext = item.name.split('.').last.toLowerCase();
+    final isPreviewable = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'txt', 'md'].contains(ext);
+    if (!isPreviewable) {
+      _showToast('Preview not available for .$ext files');
+      return;
+    }
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) {
+      _previewImage(item, Theme.of(context));
+    } else {
+      _openFile(item);
+    }
+  }
+
+  void _showSearchDialog(BuildContext context, DriveState drive) {
+    final ctrl = TextEditingController(text: _searchQuery);
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Search Files'),
+      content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: 'File name...', prefixIcon: Icon(Icons.search))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        FilledButton(onPressed: () {
+          Navigator.pop(ctx);
+          setState(() => _searchQuery = ctrl.text.trim());
+        }, child: const Text('Search')),
+      ],
+    ));
   }
 }

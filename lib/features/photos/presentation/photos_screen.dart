@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../data/photos_providers.dart';
 import 'package:lifelab_core/api/endpoints.dart';
 import 'package:lifelab_core/di/core_providers.dart';
@@ -19,6 +20,8 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
   final Set<String> _selectedIds = {};
   final _picker = ImagePicker();
   bool _showTimeline = false;
+  String _searchFilter = ''; // date, type, name
+  DateTimeRange? _dateFilterRange;
 
   @override
   void initState() { super.initState(); Future.microtask(() => ref.read(photosProvider.notifier).loadPhotos()); }
@@ -83,6 +86,20 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Face detection failed: $e')));
     }
+  }
+
+  void _applySearchFilter(String filter) {
+    if (filter == 'pick_range') {
+      showDatePicker(context: context, firstDate: DateTime(2000), lastDate: DateTime.now()).then((date) {
+        if (date != null) {
+          setState(() => _dateFilterRange = DateTimeRange(start: date, end: date));
+          ref.read(photosProvider.notifier).searchPhotos('');
+        }
+      });
+      return;
+    }
+    setState(() => _searchFilter = _searchFilter == filter ? '' : filter);
+    ref.read(photosProvider.notifier).searchPhotos('');
   }
 
   void _showJumpToDate() async {
@@ -182,10 +199,23 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
                     _viewChip('Trash', PhotosView.trash, photos.view),
                   ])),
                   const SizedBox(height: 4),
-                  Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: TextField(
-                    decoration: const InputDecoration(hintText: 'Search photos...', prefixIcon: Icon(Icons.search), isDense: true, border: OutlineInputBorder()),
-                    onChanged: (v) => ref.read(photosProvider.notifier).searchPhotos(v),
-                  )),
+                  Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Row(children: [
+                    Expanded(child: TextField(
+                      decoration: const InputDecoration(hintText: 'Search photos...', prefixIcon: Icon(Icons.search), isDense: true, border: OutlineInputBorder()),
+                      onChanged: (v) => ref.read(photosProvider.notifier).searchPhotos(v),
+                    )),
+                    const SizedBox(width: 8),
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.filter_list),
+                      onSelected: (v) => _applySearchFilter(v),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(value: 'name', child: Row(children: [Icon(_searchFilter == 'name' ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 18), const SizedBox(width: 8), const Text('By name')])),
+                        PopupMenuItem(value: 'date', child: Row(children: [Icon(_searchFilter == 'date' ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 18), const SizedBox(width: 8), const Text('By date')])),
+                        PopupMenuItem(value: 'type', child: Row(children: [Icon(_searchFilter == 'type' ? Icons.radio_button_checked : Icons.radio_button_unchecked, size: 18), const SizedBox(width: 8), const Text('By type')]) ),
+                        if (_searchFilter == 'date') const PopupMenuItem(value: 'pick_range', child: Row(children: [Icon(Icons.date_range, size: 18), const SizedBox(width: 8), const Text('Pick date range')])),
+                      ],
+                    ),
+                  ])),
                   if (storages.storages.isNotEmpty)
                     Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: DropdownButtonFormField<String>(
                       value: _selectedStorageId, decoration: const InputDecoration(labelText: 'Storage', isDense: true, border: OutlineInputBorder()),
@@ -289,14 +319,23 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
               IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
             ]),
             const SizedBox(height: 16),
-            // Photo info panel
+            // EXIF / Photo info panel
+            Text('Photo Details', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
             Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (photo.size != null) _infoRow(Icons.data_usage, 'Size', _formatPhotoSize(photo.size)),
               if (photo.width != null && photo.height != null) _infoRow(Icons.aspect_ratio, 'Dimensions', '${photo.width} x ${photo.height}'),
               if (photo.mimeType != null) _infoRow(Icons.insert_drive_file, 'Type', photo.mimeType!),
               if (photo.cameraModel != null) _infoRow(Icons.camera_alt, 'Camera', photo.cameraModel!),
               if (photo.takenAt != null) _infoRow(Icons.date_range, 'Taken', DateTime.fromMillisecondsSinceEpoch(photo.takenAt!).toLocal().toString().substring(0, 16)),
-              if (photo.latitude != null && photo.longitude != null) _infoRow(Icons.location_on, 'Location', '${photo.latitude!.toStringAsFixed(4)}, ${photo.longitude!.toStringAsFixed(4)}'),
+              if (photo.latitude != null && photo.longitude != null) ...[
+                _infoRow(Icons.location_on, 'Location', '${photo.latitude!.toStringAsFixed(4)}, ${photo.longitude!.toStringAsFixed(4)}'),
+                Padding(padding: const EdgeInsets.only(left: 24, top: 4), child: ActionChip(
+                  avatar: const Icon(Icons.map, size: 14),
+                  label: const Text('Open in Maps'),
+                  onPressed: () => launchUrl(Uri.parse('https://www.google.com/maps?q=${photo.latitude},${photo.longitude}')),
+                )),
+              ],
             ]))),
             const SizedBox(height: 16),
             // Actions
@@ -311,6 +350,20 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
                 onPressed: () { ref.read(photosProvider.notifier).toggleFavorite(photo.id); Navigator.pop(ctx); }),
               _actionBtn(Icons.share, 'Share',
                 onPressed: () { Navigator.pop(ctx); showDialog(context: context, builder: (_) => PhotoShareDialog(photoId: photo.id, photoName: photo.name)); }),
+              _actionBtn(Icons.link, 'Copy Link',
+                onPressed: () async {
+                  final api = ref.read(apiClientProvider);
+                  try {
+                    final r = await api.dio.dio.post('${Endpoints.photos}/${photo.id}/share');
+                    final link = (r.data as Map<String, dynamic>)['url'] as String? ?? '${Endpoints.photos}/${photo.id}';
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Link copied: $link')));
+                      Navigator.pop(ctx);
+                    }
+                  } catch (_) {
+                    if (mounted) { Navigator.pop(ctx); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not generate share link'))); }
+                  }
+                }),
               _actionBtn(Icons.edit, 'Edit',
                 onPressed: () { Navigator.pop(ctx); context.push('/photos/${photo.id}/edit'); }),
               _actionBtn(Icons.face, 'Detect Faces',

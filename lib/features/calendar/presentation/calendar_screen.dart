@@ -34,7 +34,19 @@ class CalendarScreen extends ConsumerWidget {
         leading: IconButton(icon: const Icon(Icons.chevron_left), onPressed: notifier.previousMonth),
         actions: [
           IconButton(icon: const Icon(Icons.chevron_right), onPressed: notifier.nextMonth),
-          IconButton(icon: const Icon(Icons.download), tooltip: 'Export calendar', onPressed: () => _exportCalendar(context, ref, state)),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (v) {
+              if (v == 'export') _exportCalendar(context, ref, state);
+              if (v == 'ics_export') _exportICS(context, ref, state);
+              if (v == 'ics_import') _importICS(context, ref);
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'export', child: Text('Export JSON')),
+              const PopupMenuItem(value: 'ics_export', child: Text('Export ICS')),
+              const PopupMenuItem(value: 'ics_import', child: Text('Import ICS')),
+            ],
+          ),
         ],
       ),
       body: state.isLoading
@@ -214,6 +226,44 @@ class CalendarScreen extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+      }
+    }
+  }
+
+  void _exportICS(BuildContext context, WidgetRef ref, CalendarState state) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final month = '${state.currentMonth.year.toString().padLeft(4, '0')}-${state.currentMonth.month.toString().padLeft(2, '0')}';
+      final r = await api.dio.dio.get(Endpoints.calendar, queryParameters: {'month': month, 'format': 'ics'});
+      final icsData = r.data is String ? r.data as String : r.data.toString();
+      if (context.mounted) {
+        showDialog(context: context, builder: (ctx) => AlertDialog(
+          title: const Text('ICS Export'),
+          content: SelectableText(icsData, style: const TextStyle(fontFamily: 'monospace', fontSize: 10)),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+        ));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('ICS export failed: $e')));
+      }
+    }
+  }
+
+  void _importICS(BuildContext context, WidgetRef ref) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      // Show dialog explaining ICS import
+      if (context.mounted) {
+        showDialog(context: context, builder: (ctx) => AlertDialog(
+          title: const Text('Import ICS'),
+          content: const Text('To import an ICS file, use the web app or send the file to your server\'s calendar import endpoint. Mobile ICS file picking will be available in a future update.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        ));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e')));
       }
     }
   }

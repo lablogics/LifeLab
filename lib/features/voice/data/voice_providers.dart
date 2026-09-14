@@ -5,7 +5,8 @@ class VoiceNote {
   final String title;
   final int duration; // seconds
   final int createdAt;
-  const VoiceNote({required this.id, required this.title, this.duration = 0, this.createdAt = 0});
+  final List<String> tags;
+  const VoiceNote({required this.id, required this.title, this.duration = 0, this.createdAt = 0, this.tags = const []});
 }
 
 class VoiceState {
@@ -24,6 +25,14 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
     state = state.copyWith(notes: [...state.notes, note], isRecording: false);
   }
   void deleteNote(String id) => state = state.copyWith(notes: state.notes.where((n) => n.id != id).toList());
+
+  void renameNote(String id, String newTitle) {
+    state = state.copyWith(notes: state.notes.map((n) => n.id == id ? VoiceNote(id: n.id, title: newTitle, duration: n.duration, createdAt: n.createdAt, tags: n.tags) : n).toList());
+  }
+
+  void setTags(String id, List<String> tags) {
+    state = state.copyWith(notes: state.notes.map((n) => n.id == id ? VoiceNote(id: n.id, title: n.title, duration: n.duration, createdAt: n.createdAt, tags: tags) : n).toList());
+  }
 }
 
 final voiceProvider = StateNotifierProvider<VoiceNotifier, VoiceState>((ref) => VoiceNotifier());

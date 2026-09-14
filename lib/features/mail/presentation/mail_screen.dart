@@ -23,15 +23,88 @@ class MailScreen extends ConsumerWidget {
           ? Center(child: Text('No emails in ${state.currentFolder.name}', style: theme.textTheme.bodyLarge))
           : ListView.builder(itemCount: state.filtered.length, itemBuilder: (ctx, i) {
               final mail = state.filtered[i];
-              return ListTile(leading: CircleAvatar(child: Text(mail.from[0].toUpperCase())), title: Text(mail.subject, style: TextStyle(fontWeight: mail.isRead ? FontWeight.normal : FontWeight.bold)), subtitle: Text('${mail.to} - ${mail.body}', maxLines: 1, overflow: TextOverflow.ellipsis), trailing: PopupMenuButton<String>(onSelected: (v) { if (v == 'trash') notifier.moveToTrash(mail.id); else if (v == 'delete') notifier.deletePermanently(mail.id); }, itemBuilder: (ctx) => [const PopupMenuItem(value: 'trash', child: Text('Move to Trash')), const PopupMenuItem(value: 'delete', child: Text('Delete'))]), onTap: () { notifier.markRead(mail.id); _showMailDetail(context, mail); });
+              return ListTile(
+                leading: CircleAvatar(child: Text(mail.from[0].toUpperCase())),
+                title: Text(mail.subject, style: TextStyle(fontWeight: mail.isRead ? FontWeight.normal : FontWeight.bold)),
+                subtitle: Text('${mail.to} - ${mail.body}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(icon: Icon(mail.isStarred ? Icons.star : Icons.star_border, color: mail.isStarred ? Colors.amber : null, size: 18), onPressed: () => notifier.toggleStar(mail.id)),
+                  if (mail.attachments.isNotEmpty) const Icon(Icons.attach_file, size: 16),
+                  PopupMenuButton<String>(onSelected: (v) {
+                    switch (v) {
+                      case 'trash': notifier.moveToTrash(mail.id);
+                      case 'archive': notifier.moveToArchive(mail.id);
+                      case 'spam': notifier.moveToSpam(mail.id);
+                      case 'delete': notifier.deletePermanently(mail.id);
+                      default: break;
+                    }
+                  }, itemBuilder: (ctx) => [
+                    const PopupMenuItem(value: 'archive', child: Text('Archive')),
+                    const PopupMenuItem(value: 'spam', child: Text('Spam')),
+                    const PopupMenuItem(value: 'trash', child: Text('Move to Trash')),
+                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ]),
+                ]),
+                onTap: () { notifier.markRead(mail.id); _showMailDetail(context, mail, ref); },
+              );
             }),
     );
   }
 
-  IconData _folderIcon(MailFolder f) => switch (f) { MailFolder.inbox => Icons.inbox, MailFolder.sent => Icons.send, MailFolder.drafts => Icons.drafts, MailFolder.trash => Icons.delete };
+  IconData _folderIcon(MailFolder f) => switch (f) { MailFolder.inbox => Icons.inbox, MailFolder.sent => Icons.send, MailFolder.drafts => Icons.drafts, MailFolder.trash => Icons.delete, MailFolder.archive => Icons.archive, MailFolder.spam => Icons.report };
 
-  void _showMailDetail(BuildContext context, MailModel mail) {
-    showDialog(context: context, builder: (ctx) => AlertDialog(title: Text(mail.subject), content: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('From: ${mail.from}'), Text('To: ${mail.to}'), const Divider(), Text(mail.body)])), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))]));
+  void _showMailDetail(BuildContext context, MailModel mail, WidgetRef ref) {
+    final theme = Theme.of(context);
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Text(mail.subject),
+      content: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text('From: ', style: TextStyle(fontWeight: FontWeight.bold)),
+          Expanded(child: Text(mail.from)),
+        ]),
+        Row(children: [
+          Text('To: ', style: TextStyle(fontWeight: FontWeight.bold)),
+          Expanded(child: Text(mail.to)),
+        ]),
+        if (mail.attachments.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text('Attachments:', style: TextStyle(fontWeight: FontWeight.bold)),
+          ...mail.attachments.map((a) => Row(children: [const Icon(Icons.attach_file, size: 14), const SizedBox(width: 4), Text(a, style: theme.textTheme.bodySmall)])),
+        ],
+        const Divider(),
+        Text(mail.body),
+      ])),
+      actions: [
+        IconButton(icon: Icon(mail.isStarred ? Icons.star : Icons.star_border, color: mail.isStarred ? Colors.amber : null), onPressed: () { ref.read(mailProvider.notifier).toggleStar(mail.id); Navigator.pop(ctx); }),
+        TextButton(onPressed: () { Navigator.pop(ctx); _showReplyDialog(context, mail, false, ref); }, child: const Text('Reply')),
+        TextButton(onPressed: () { Navigator.pop(ctx); _showReplyDialog(context, mail, true, ref); }, child: const Text('Forward')),
+        TextButton(onPressed: () { ref.read(mailProvider.notifier).moveToArchive(mail.id); Navigator.pop(ctx); }, child: const Text('Archive')),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+      ],
+    ));
+  }
+
+  void _showReplyDialog(BuildContext context, MailModel mail, bool isForward, WidgetRef ref) {
+    final bodyCtrl = TextEditingController();
+    final prefix = isForward ? 'Fwd' : 'Re';
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Text('$prefix: ${mail.subject}'),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (!isForward) Text('To: ${mail.from}', style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Text('--- Original message ---', style: TextStyle(color: Theme.of(ctx).colorScheme.outline)),
+        Text(mail.body, style: TextStyle(color: Theme.of(ctx).colorScheme.outline)),
+        const SizedBox(height: 8),
+        TextField(controller: bodyCtrl, decoration: const InputDecoration(labelText: 'Your reply'), maxLines: 5),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        FilledButton(onPressed: () {
+          ref.read(mailProvider.notifier).sendMail(isForward ? mail.to : mail.from, '$prefix: ${mail.subject}', bodyCtrl.text);
+          Navigator.pop(ctx);
+        }, child: const Text('Send')),
+      ],
+    ));
   }
 
   void _showComposeDialog(BuildContext context, WidgetRef ref) {

@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lifelab_core/api/endpoints.dart';
@@ -24,6 +26,8 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
   bool _hasChanges = false;
   bool _showToolbar = true;
   NoteModel? _originalNote;
+  Timer? _autoSaveTimer;
+  String _saveStatus = 'saved'; // saved | saving | unsaved
 
   @override
   void initState() { super.initState(); _loadNote(); }
@@ -180,7 +184,7 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
     final contentJson = _buildTipTapJson(_contentController.text);
     try {
       await ref.read(notesRepositoryProvider).updateNote(widget.noteId, title: title, contentJson: contentJson);
-      setState(() => _hasChanges = false);
+      setState(() { _hasChanges = false; _saveStatus = 'saved'; });
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved'), duration: Duration(seconds: 1)));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
@@ -579,7 +583,119 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
     return map[colorName] ?? Colors.grey;
   }
 
-  void dispose() { _titleController.dispose(); _contentController.dispose(); super.dispose(); }
+  void _onContentChanged() {
+    setState(() { _hasChanges = true; _saveStatus = 'unsaved'; });
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(seconds: 3), () {
+      if (_hasChanges) _autoSave();
+    });
+  }
+
+  Future<void> _autoSave() async {
+    if (!_hasChanges) return;
+    setState(() => _saveStatus = 'saving');
+    final title = _titleController.text.trim().isEmpty ? 'Untitled' : _titleController.text.trim();
+    final contentJson = _buildTipTapJson(_contentController.text);
+    try {
+      await ref.read(notesRepositoryProvider).updateNote(widget.noteId, title: title, contentJson: contentJson);
+      setState(() { _hasChanges = false; _saveStatus = 'saved'; });
+    } catch (_) {
+      setState(() => _saveStatus = 'unsaved');
+    }
+  }
+
+  void _pasteImage() async {
+    try {
+      final data = await Clipboard.getData('image/png');
+      if (data?.text != null) {
+        final pos = _contentController.selection.base.offset;
+        _contentController.text = _contentController.text.replaceRange(pos, pos, '![pasted image](${data!.text})');
+        setState(() => _hasChanges = true);
+        return;
+      }
+      // Fallback: pick from gallery
+      final result = await FilePicker.platform.pickFiles(type: FileType.image);
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        final formData = FormData.fromMap({'file': await MultipartFile.fromFile(file.path!, filename: file.name)});
+        final api = ref.read(apiClientProvider);
+        await api.dio.dio.post('${Endpoints.attachments}/${widget.noteId}', data: formData);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Image attached')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Paste failed: $e')));
+    }
+  }
+
+  void _detectRichEmbed() {
+    final text = _contentController.text;
+    final urlPatterns = [
+      RegExp(r'https?://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/)([\w-]+)'),
+      RegExp(r'https?://(?:www\.)?(?:twitter\.com|x\.com)/\w+/status/\d+'),
+      RegExp(r'https?://maps\.google\.com|goo\.gl/maps'),
+    ];
+    for (final pattern in urlPatterns) {
+      final match = pattern.firstMatch(text);
+      if (match != null) {
+        final url = match.group(0)!;
+        final type = url.contains('youtube') || url.contains('youtu.be') ? 'YouTube'
+            : url.contains('twitter') || url.contains('x.com') ? 'Tweet' : 'Map';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('$type link detected: ${url.substring(0, url.length.clamp(0, 40))}...'),
+            action: SnackBarAction(label: 'Embed', onPressed: () {
+              final icon = type == 'YouTube' ? '\ud83c\udfac' : type == 'Tweet' ? '\ud83d\udc26' : '\ud83d\uddfa\ufe0f';
+              final pos = _contentController.selection.base.offset;
+              _contentController.text = _contentController.text.replaceRange(pos, pos, '\n$icon $type: $url\n');
+              setState(() => _hasChanges = true);
+            }),
+          ));
+        }
+        break;
+      }
+    }
+  }
+
+  void _showWikilinkPreview() async {
+    final text = _contentController.text;
+    final regex = RegExp(r'\[\[([^\]]+)\]\]');
+    final matches = regex.allMatches(text);
+    if (matches.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No wikilinks found')));
+      return;
+    }
+    final links = matches.map((m) => m.group(1)!).toList();
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Preview Wikilink'),
+        children: links.map((name) => SimpleDialogOption(onPressed: () => Navigator.pop(ctx, name), child: Text(name))).toList(),
+      ),
+    );
+    if (selected == null) return;
+    try {
+      final notes = await ref.read(notesRepositoryProvider).getNotes();
+      final match = notes.where((n) => n.title.toLowerCase() == selected.toLowerCase()).toList();
+      if (match.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Note "$selected" not found')));
+        return;
+      }
+      final note = match.first;
+      if (!mounted) return;
+      showDialog(context: context, builder: (ctx) => AlertDialog(
+        title: Text(note.title),
+        content: SingleChildScrollView(child: Text(note.contentText.isNotEmpty ? note.contentText.substring(0, note.contentText.length.clamp(0, 500)) : 'Empty note')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          FilledButton(onPressed: () { Navigator.pop(ctx); context.push('/notes/${note.id}'); }, child: const Text('Open')),
+        ],
+      ));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Preview failed: $e')));
+    }
+  }
+
+  void dispose() { _autoSaveTimer?.cancel(); _titleController.dispose(); _contentController.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -606,6 +722,11 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
             onChanged: (_) => setState(() => _hasChanges = true),
           )),
           actions: [
+            if (_saveStatus != 'saved')
+              Padding(padding: const EdgeInsets.only(right: 4), child: Text(
+                _saveStatus == 'saving' ? 'Saving...' : 'Unsaved',
+                style: theme.textTheme.labelSmall?.copyWith(color: _saveStatus == 'saving' ? Colors.orange : Colors.red),
+              )),
             IconButton(icon: const Icon(Icons.save), tooltip: 'Save', onPressed: _hasChanges ? _save : null),
             PopupMenuButton<String>(
               onSelected: (v) {
@@ -652,6 +773,8 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
                 _toolBtn(Icons.check_box, 'Task', () => _prependLine('- [ ] ')),
                 _toolBtn(Icons.link, 'Wikilink', _insertWikilink),
                 _toolBtn(Icons.open_in_new, 'Follow', _navigateToWikilink),
+                _toolBtn(Icons.preview, 'Wiki Preview', _showWikilinkPreview),
+                _toolBtn(Icons.paste, 'Paste Image', _pasteImage),
                 _toolBtn(Icons.table_chart, 'Table', _insertTable),
                 _toolBtn(Icons.code, 'Code Block', _insertCodeBlock),
                 _toolBtn(Icons.functions, 'Math', _insertMathBlock),
@@ -675,7 +798,11 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
               textAlignVertical: TextAlignVertical.top,
               decoration: const InputDecoration(hintText: 'Start writing...', border: InputBorder.none, contentPadding: EdgeInsets.zero),
               style: theme.textTheme.bodyLarge,
-              onChanged: (_) => setState(() => _hasChanges = true),
+              onChanged: (_) {
+                _onContentChanged();
+                // Detect URLs for rich embeds every few chars
+                if (_contentController.text.length % 20 == 0) _detectRichEmbed();
+              },
             ),
           )),
         ]),

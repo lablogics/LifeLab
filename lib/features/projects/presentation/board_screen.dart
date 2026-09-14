@@ -81,6 +81,17 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
                 itemBuilder: (ctx) => _boards.map((b) => PopupMenuItem(value: b, child: Text(b.name))).toList(),
               ),
             IconButton(icon: const Icon(Icons.add), tooltip: 'Add Board', onPressed: () => _addBoard(context)),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (v) {
+                if (v == 'template') _showCardTemplates(context);
+                if (v == 'status') _showProjectStatus(context);
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'template', child: Text('Card Templates')),
+                const PopupMenuItem(value: 'status', child: Text('Project Status')),
+              ],
+            ),
           ],
         ),
         body: TabBarView(
@@ -323,21 +334,39 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
   }
 
   void _addCard(BuildContext context, BoardColumnModel column) async {
-    final controller = TextEditingController();
-    final title = await showDialog<String>(
+    final titleCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final tagsCtrl = TextEditingController();
+    String? selectedLabel;
+    final labels = ['none', 'low', 'medium', 'high', 'urgent'];
+
+    final result = await showDialog<Map<String, String>>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setDialogState) => AlertDialog(
         title: const Text('New Card'),
-        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(hintText: 'Card title')),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: titleCtrl, autofocus: true, decoration: const InputDecoration(hintText: 'Card title')),
+          const SizedBox(height: 8),
+          TextField(controller: descCtrl, decoration: const InputDecoration(hintText: 'Description (optional)')),
+          const SizedBox(height: 8),
+          TextField(controller: tagsCtrl, decoration: const InputDecoration(hintText: 'Tags (comma-separated)')),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: selectedLabel,
+            decoration: const InputDecoration(hintText: 'Priority Label'),
+            items: labels.map((l) => DropdownMenuItem(value: l, child: Text(l[0].toUpperCase() + l.substring(1)))).toList(),
+            onChanged: (v) => setDialogState(() => selectedLabel = v),
+          ),
+        ])),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Add')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, {'title': titleCtrl.text.trim(), 'desc': descCtrl.text.trim(), 'tags': tagsCtrl.text.trim(), 'label': selectedLabel ?? ''}), child: const Text('Add')),
         ],
-      ),
+      )),
     );
-    if (title != null && title.isNotEmpty) {
+    if (result != null && result['title']!.isNotEmpty) {
       final repo = ref.read(projectsRepositoryProvider);
-      await repo.createCard(column.id, _selectedBoard!.id, title);
+      await repo.createCard(column.id, _selectedBoard!.id, result['title']!);
       _loadBoardDetail(_selectedBoard!.id);
     }
   }
@@ -352,6 +381,76 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
     final repo = ref.read(projectsRepositoryProvider);
     await repo.deleteCard(cardId);
     _loadBoardDetail(_selectedBoard!.id);
+  }
+
+  void _showCardTemplates(BuildContext context) {
+    final templates = [
+      {'name': 'Bug Report', 'desc': 'Steps to reproduce, expected vs actual behavior'},
+      {'name': 'Feature Request', 'desc': 'User story, acceptance criteria, priority'},
+      {'name': 'Task', 'desc': 'Description, assignee, due date'},
+      {'name': 'Spike / Research', 'desc': 'Question, approach, time-box, findings'},
+    ];
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Padding(padding: EdgeInsets.all(16), child: Text('Card Templates', style: TextStyle(fontWeight: FontWeight.bold))),
+        ...templates.map((t) => ListTile(
+          leading: const Icon(Icons.copy),
+          title: Text(t['name']!),
+          subtitle: Text(t['desc']!),
+          onTap: () {
+            Navigator.pop(ctx);
+            final columns = _boardDetail?['columns'] as List?;
+            if (columns != null && columns.isNotEmpty) {
+              final firstCol = BoardColumnModel.fromJson(columns[0] as Map<String, dynamic>);
+              final titleCtrl = TextEditingController(text: t['name']);
+              final descCtrl = TextEditingController(text: t['desc']);
+              showDialog(context: context, builder: (d) => AlertDialog(
+                title: const Text('Create from Template'),
+                content: Column(mainAxisSize: MainAxisSize.min, children: [
+                  TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title')),
+                  const SizedBox(height: 8),
+                  TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Description'), maxLines: 3),
+                ]),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(d), child: const Text('Cancel')),
+                  FilledButton(onPressed: () async {
+                    Navigator.pop(d);
+                    final repo = ref.read(projectsRepositoryProvider);
+                    await repo.createCard(firstCol.id, _selectedBoard!.id, titleCtrl.text);
+                    _loadBoardDetail(_selectedBoard!.id);
+                  }, child: const Text('Create')),
+                ],
+              ));
+            }
+          },
+        )),
+        const SizedBox(height: 8),
+      ])),
+    );
+  }
+
+  void _showProjectStatus(BuildContext context) {
+    final statuses = ['active', 'on_hold', 'completed', 'archived'];
+    final currentStatus = _boardDetail?['status'] as String? ?? 'active';
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Padding(padding: EdgeInsets.all(16), child: Text('Project Status', style: TextStyle(fontWeight: FontWeight.bold))),
+        ...statuses.map((s) => RadioListTile<String>(
+          value: s, groupValue: currentStatus,
+          title: Text(s[0].toUpperCase() + s.substring(1).replaceAll('_', ' ')),
+          onChanged: (v) {
+            Navigator.pop(ctx);
+            try {
+              final api = ref.read(apiClientProvider);
+              api.dio.dio.patch('${Endpoints.projects}/${widget.projectId}', data: {'status': v});
+            } catch (_) {}
+          },
+        )),
+        const SizedBox(height: 8),
+      ])),
+    );
   }
 }
 

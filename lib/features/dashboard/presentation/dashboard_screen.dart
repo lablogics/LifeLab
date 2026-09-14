@@ -158,6 +158,13 @@ final dashboardProvider = StateNotifierProvider<DashboardNotifier, DashboardStat
   return DashboardNotifier(ref.watch(apiClientProvider));
 });
 
+String _formatDate() {
+  final now = DateTime.now();
+  final days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  final months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return '${days[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}, ${now.year}';
+}
+
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -168,7 +175,13 @@ class DashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Dashboard', style: TextStyle(fontSize: 18)),
+            Text(_formatDate(), style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline)),
+          ],
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.terminal), tooltip: 'Command Palette',
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CommandPalette()))),
@@ -275,14 +288,25 @@ class DashboardScreen extends ConsumerWidget {
                     const SizedBox(height: 16),
                   ],
 
-                  // Smart suggestions
-                  if (state.recentNotes.isNotEmpty || state.todayTasks.isNotEmpty) ...[
+                  // Smart suggestions (clickable)
+                  if (state.todayTasks.isNotEmpty || state.recentNotes.isNotEmpty) ...[
                     Text('Suggestions', style: theme.textTheme.titleMedium),
                     const SizedBox(height: 8),
-                    Card(child: ListTile(
-                      leading: Icon(Icons.lightbulb, color: theme.colorScheme.tertiary),
-                      title: const Text('Pull to refresh for latest data'),
-                      subtitle: Text('${state.stats?.notes ?? 0} notes, ${state.stats?.todos ?? 0} todos'),
+                    ...state.todayTasks.take(2).map((t) => Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.lightbulb, color: Colors.amber),
+                        title: Text('Complete: ${t['title'] as String? ?? ''}'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => context.go('/todos'),
+                      ),
+                    )),
+                    ...state.recentNotes.take(2).map((n) => Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.lightbulb_outline, color: Colors.blue),
+                        title: Text('Review: ${n['title'] as String? ?? 'Untitled'}'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => context.push('/notes/${n['id']}'),
+                      ),
                     )),
                   ],
 

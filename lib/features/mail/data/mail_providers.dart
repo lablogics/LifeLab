@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-enum MailFolder { inbox, sent, drafts, trash }
+enum MailFolder { inbox, sent, drafts, trash, archive, spam }
 
 class MailModel {
   final String id;
@@ -11,10 +11,12 @@ class MailModel {
   final MailFolder folder;
   final int date;
   final bool isRead;
+  final bool isStarred;
+  final List<String> attachments;
 
-  const MailModel({required this.id, required this.from, required this.to, required this.subject, this.body = '', this.folder = MailFolder.inbox, this.date = 0, this.isRead = false});
+  const MailModel({required this.id, required this.from, required this.to, required this.subject, this.body = '', this.folder = MailFolder.inbox, this.date = 0, this.isRead = false, this.isStarred = false, this.attachments = const []});
 
-  MailModel copyWith({MailFolder? folder, bool? isRead}) => MailModel(id: id, from: from, to: to, subject: subject, body: body, folder: folder ?? this.folder, date: date, isRead: isRead ?? this.isRead);
+  MailModel copyWith({MailFolder? folder, bool? isRead, bool? isStarred, List<String>? attachments}) => MailModel(id: id, from: from, to: to, subject: subject, body: body, folder: folder ?? this.folder, date: date, isRead: isRead ?? this.isRead, isStarred: isStarred ?? this.isStarred, attachments: attachments ?? this.attachments);
 }
 
 class MailState {
@@ -44,6 +46,18 @@ class MailNotifier extends StateNotifier<MailState> {
 
   void markRead(String id) {
     state = state.copyWith(mails: state.mails.map((m) => m.id == id ? m.copyWith(isRead: true) : m).toList());
+  }
+
+  void toggleStar(String id) {
+    state = state.copyWith(mails: state.mails.map((m) => m.id == id ? m.copyWith(isStarred: !m.isStarred) : m).toList());
+  }
+
+  void moveToArchive(String id) {
+    state = state.copyWith(mails: state.mails.map((m) => m.id == id ? m.copyWith(folder: MailFolder.archive) : m).toList());
+  }
+
+  void moveToSpam(String id) {
+    state = state.copyWith(mails: state.mails.map((m) => m.id == id ? m.copyWith(folder: MailFolder.spam) : m).toList());
   }
 
   void moveToTrash(String id) {
