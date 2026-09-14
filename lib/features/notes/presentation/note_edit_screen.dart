@@ -66,24 +66,112 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
   String _buildTipTapJson(String plainText) {
     final lines = plainText.split('\n');
     final content = <Map<String, dynamic>>[];
+    bool inCodeBlock = false;
+    String codeLanguage = '';
+    List<Map<String, dynamic>> codeLines = [];
+    bool inTable = false;
+    List<Map<String, dynamic>> tableRows = [];
+
     for (final line in lines) {
+      // Code block toggle
+      if (line.startsWith('```')) {
+        if (inCodeBlock) {
+          content.add({'type': 'codeBlock', 'attrs': {'language': codeLanguage.isEmpty ? null : codeLanguage}, 'content': codeLines});
+          codeLines = [];
+          inCodeBlock = false;
+        } else {
+          inCodeBlock = true;
+          codeLanguage = line.substring(3).trim();
+        }
+        continue;
+      }
+      if (inCodeBlock) {
+        codeLines.add({'type': 'text', 'text': line});
+        continue;
+      }
+      // Table rows
+      if (line.startsWith('|') && line.endsWith('|')) {
+        if (!inTable) inTable = true;
+        final cells = line.split('|').where((c) => c.isNotEmpty).map((c) => c.trim()).toList();
+        if (cells.every((c) => RegExp(r'^[-:]+$').hasMatch(c))) continue; // separator row
+        tableRows.add({'type': 'tableRow', 'content': cells.map((c) => {'type': 'tableCell', 'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': c}]}]}).toList()});
+        continue;
+      } else if (inTable) {
+        content.add({'type': 'table', 'content': tableRows});
+        tableRows = [];
+        inTable = false;
+      }
+      // Math blocks
+      if (line.startsWith('\$\$') && line.endsWith('\$\$') && line.length > 4) {
+        content.add({'type': 'math', 'attrs': {'latex': line.substring(2, line.length - 2)}});
+        continue;
+      }
+      // Headings
       if (line.startsWith('### ')) {
-        content.add({'type': 'heading', 'attrs': {'level': 3}, 'content': [if (line.substring(4).isNotEmpty) {'type': 'text', 'text': line.substring(4)}]});
+        content.add({'type': 'heading', 'attrs': {'level': 3}, 'content': _inlineContent(line.substring(4))});
       } else if (line.startsWith('## ')) {
-        content.add({'type': 'heading', 'attrs': {'level': 2}, 'content': [if (line.substring(3).isNotEmpty) {'type': 'text', 'text': line.substring(3)}]});
+        content.add({'type': 'heading', 'attrs': {'level': 2}, 'content': _inlineContent(line.substring(3))});
       } else if (line.startsWith('# ')) {
-        content.add({'type': 'heading', 'attrs': {'level': 1}, 'content': [if (line.substring(2).isNotEmpty) {'type': 'text', 'text': line.substring(2)}]});
+        content.add({'type': 'heading', 'attrs': {'level': 1}, 'content': _inlineContent(line.substring(2))});
       } else if (line.startsWith('- [ ] ')) {
-        content.add({'type': 'taskItem', 'attrs': {'checked': false}, 'content': [if (line.substring(6).isNotEmpty) {'type': 'text', 'text': line.substring(6)}]});
+        content.add({'type': 'taskItem', 'attrs': {'checked': false}, 'content': _inlineContent(line.substring(6))});
       } else if (line.startsWith('- [x] ')) {
-        content.add({'type': 'taskItem', 'attrs': {'checked': true}, 'content': [if (line.substring(6).isNotEmpty) {'type': 'text', 'text': line.substring(6)}]});
+        content.add({'type': 'taskItem', 'attrs': {'checked': true}, 'content': _inlineContent(line.substring(6))});
+      } else if (line.startsWith('> ')) {
+        content.add({'type': 'blockquote', 'content': [{'type': 'paragraph', 'content': _inlineContent(line.substring(2))}]});
+      } else if (line.startsWith('- ')) {
+        content.add({'type': 'bulletItem', 'content': _inlineContent(line.substring(2))});
       } else if (line.isEmpty) {
         content.add({'type': 'paragraph', 'content': []});
       } else {
-        content.add({'type': 'paragraph', 'content': [{'type': 'text', 'text': line}]});
+        content.add({'type': 'paragraph', 'content': _inlineContent(line)});
       }
     }
+    // Close any open code block or table
+    if (inCodeBlock && codeLines.isNotEmpty) {
+      content.add({'type': 'codeBlock', 'attrs': {'language': codeLanguage.isEmpty ? null : codeLanguage}, 'content': codeLines});
+    }
+    if (inTable && tableRows.isNotEmpty) {
+      content.add({'type': 'table', 'content': tableRows});
+    }
     return jsonEncode({'type': 'doc', 'content': content});
+  }
+
+  /// Parse inline marks: **bold**, *italic*, ~~strike~~, ==highlight==, `code`, [[wikilink]], @mention, ![image]
+  List<Map<String, dynamic>> _inlineContent(String text) {
+    final result = <Map<String, dynamic>>[];
+    final regex = RegExp(r'(\*\*(.+?)\*\*|\*(.+?)\*|~~(.+?)~~|==(.+?)==|`(.+?)`|\[\[(.+?)\]\]|@(\w+)|!\[(.+?)\]\((.+?)\))');
+    int lastEnd = 0;
+    for (final match in regex.allMatches(text)) {
+      if (match.start > lastEnd) {
+        result.add({'type': 'text', 'text': text.substring(lastEnd, match.start)});
+      }
+      if (match.group(2) != null) {
+        result.add({'type': 'text', 'text': match.group(2), 'marks': [{'type': 'bold'}]});
+      } else if (match.group(3) != null) {
+        result.add({'type': 'text', 'text': match.group(3), 'marks': [{'type': 'italic'}]});
+      } else if (match.group(4) != null) {
+        result.add({'type': 'text', 'text': match.group(4), 'marks': [{'type': 'strike'}]});
+      } else if (match.group(5) != null) {
+        result.add({'type': 'text', 'text': match.group(5), 'marks': [{'type': 'highlight'}]});
+      } else if (match.group(6) != null) {
+        result.add({'type': 'text', 'text': match.group(6), 'marks': [{'type': 'code'}]});
+      } else if (match.group(7) != null) {
+        result.add({'type': 'text', 'text': match.group(7), 'marks': [{'type': 'wikilink'}]});
+      } else if (match.group(8) != null) {
+        result.add({'type': 'text', 'text': '@${match.group(8)}', 'marks': [{'type': 'mention'}]});
+      } else if (match.group(9) != null && match.group(10) != null) {
+        result.add({'type': 'image', 'attrs': {'src': match.group(10), 'alt': match.group(9)}});
+      }
+      lastEnd = match.end;
+    }
+    if (lastEnd < text.length) {
+      result.add({'type': 'text', 'text': text.substring(lastEnd)});
+    }
+    if (result.isEmpty && text.isNotEmpty) {
+      result.add({'type': 'text', 'text': text});
+    }
+    return result;
   }
 
   Future<void> _save() async {
@@ -138,8 +226,120 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
     if (noteName != null && noteName.isNotEmpty) {
       final pos = _contentController.selection.base.offset;
       _contentController.text = _contentController.text.replaceRange(pos, pos, '[[$noteName]]');
+      _contentController.selection = TextSelection.collapsed(offset: pos + noteName.length + 4);
       setState(() => _hasChanges = true);
     }
+  }
+
+  void _insertTable() {
+    final pos = _contentController.selection.base.offset;
+    const table = '| Header 1 | Header 2 | Header 3 |\n| --- | --- | --- |\n| Cell 1 | Cell 2 | Cell 3 |\n| Cell 4 | Cell 5 | Cell 6 |';
+    _contentController.text = _contentController.text.replaceRange(pos, pos, '\n$table\n');
+    _contentController.selection = TextSelection.collapsed(offset: pos + table.length + 2);
+    setState(() => _hasChanges = true);
+  }
+
+  void _insertCodeBlock() async {
+    final languages = ['', 'dart', 'javascript', 'python', 'java', 'kotlin', 'swift', 'rust', 'go', 'sql', 'html', 'css', 'json', 'yaml', 'bash'];
+    final lang = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Code Block Language'),
+        children: languages.map((l) => SimpleDialogOption(
+          onPressed: () => Navigator.pop(ctx, l),
+          child: Text(l.isEmpty ? 'Plain text' : l),
+        )).toList(),
+      ),
+    );
+    final pos = _contentController.selection.base.offset;
+    final langStr = lang ?? '';
+    final block = '\n```$langStr\n\n```\n';
+    _contentController.text = _contentController.text.replaceRange(pos, pos, block);
+    _contentController.selection = TextSelection.collapsed(offset: pos + 4 + langStr.length);
+    setState(() => _hasChanges = true);
+  }
+
+  void _insertMathBlock() async {
+    final controller = TextEditingController();
+    final latex = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Insert Math (LaTeX)'),
+        content: TextField(controller: controller, autofocus: true, maxLines: 3,
+          decoration: const InputDecoration(hintText: 'E = mc^2', border: OutlineInputBorder()),
+          style: const TextStyle(fontFamily: 'monospace')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Insert')),
+        ],
+      ),
+    );
+    if (latex != null && latex.isNotEmpty) {
+      final pos = _contentController.selection.base.offset;
+      _contentController.text = _contentController.text.replaceRange(pos, pos, '\n\$\$$latex\$\$\n');
+      setState(() => _hasChanges = true);
+    }
+  }
+
+  void _insertMention() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('@ Mention'),
+        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(labelText: 'Person name', hintText: 'e.g. john')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Insert')),
+        ],
+      ),
+    );
+    if (name != null && name.isNotEmpty) {
+      final pos = _contentController.selection.base.offset;
+      _contentController.text = _contentController.text.replaceRange(pos, pos, '@$name ');
+      setState(() => _hasChanges = true);
+    }
+  }
+
+  void _insertImage() async {
+    final urlCtrl = TextEditingController();
+    final altCtrl = TextEditingController();
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Insert Image'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: urlCtrl, decoration: const InputDecoration(labelText: 'Image URL', hintText: 'https://...')),
+          const SizedBox(height: 8),
+          TextField(controller: altCtrl, decoration: const InputDecoration(labelText: 'Alt text')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, {'url': urlCtrl.text.trim(), 'alt': altCtrl.text.trim()}), child: const Text('Insert')),
+        ],
+      ),
+    );
+    if (result != null && result['url']!.isNotEmpty) {
+      final pos = _contentController.selection.base.offset;
+      final alt = result['alt']!.isEmpty ? 'image' : result['alt']!;
+      _contentController.text = _contentController.text.replaceRange(pos, pos, '![$alt](${result['url']})');
+      setState(() => _hasChanges = true);
+    }
+  }
+
+  void _applySmartTypography() {
+    var text = _contentController.text;
+    // Smart quotes
+    text = text.replaceAllMapped(RegExp(r'"([^"]*?)"'), (m) => '\u201C${m.group(1)}\u201D');
+    text = text.replaceAllMapped(RegExp(r"'([^']*?)'"), (m) => '\u2018${m.group(1)}\u2019');
+    // Em dash
+    text = text.replaceAll('---', '\u2014');
+    // En dash
+    text = text.replaceAll('--', '\u2013');
+    // Ellipsis
+    text = text.replaceAll('...', '\u2026');
+    _contentController.text = text;
+    setState(() => _hasChanges = true);
   }
 
   void _navigateToWikilink() {
@@ -452,6 +652,12 @@ class _NoteEditScreenState extends ConsumerState<NoteEditScreen> {
                 _toolBtn(Icons.check_box, 'Task', () => _prependLine('- [ ] ')),
                 _toolBtn(Icons.link, 'Wikilink', _insertWikilink),
                 _toolBtn(Icons.open_in_new, 'Follow', _navigateToWikilink),
+                _toolBtn(Icons.table_chart, 'Table', _insertTable),
+                _toolBtn(Icons.code, 'Code Block', _insertCodeBlock),
+                _toolBtn(Icons.functions, 'Math', _insertMathBlock),
+                _toolBtn(Icons.alternate_email, 'Mention', _insertMention),
+                _toolBtn(Icons.image, 'Image', _insertImage),
+                _toolBtn(Icons.text_fields, 'Typography', _applySmartTypography),
                 const SizedBox(width: 4),
                 _toolBtn(Icons.attach_file, 'Attach', _attachFile),
                 _toolBtn(Icons.mic, 'Voice', _showVoiceRecording),

@@ -18,6 +18,7 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
   bool _bulkMode = false;
   final Set<String> _selectedIds = {};
   final _picker = ImagePicker();
+  bool _showTimeline = false;
 
   @override
   void initState() { super.initState(); Future.microtask(() => ref.read(photosProvider.notifier).loadPhotos()); }
@@ -34,7 +35,54 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
       const Padding(padding: EdgeInsets.all(16), child: Text('Upload Photo', style: TextStyle(fontWeight: FontWeight.bold))),
       ListTile(leading: const Icon(Icons.camera_alt), title: const Text('Camera'), onTap: () { Navigator.pop(ctx); _pickAndUpload(ImageSource.camera); }),
       ListTile(leading: const Icon(Icons.photo_library), title: const Text('Gallery'), onTap: () { Navigator.pop(ctx); _pickAndUpload(ImageSource.gallery); }),
+      ListTile(leading: const Icon(Icons.photo_album), title: const Text('Upload to Album'), onTap: () { Navigator.pop(ctx); _uploadToAlbum(); }),
     ])));
+  }
+
+  void _uploadToAlbum() async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.dio.dio.get('${Endpoints.photos}/albums');
+      final albums = ((r.data as Map<String, dynamic>)['items'] as List? ?? []).cast<Map<String, dynamic>>();
+      if (!mounted) return;
+      if (albums.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No albums found. Create one first.')));
+        return;
+      }
+      final selectedAlbum = await showDialog<String>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: const Text('Select Album'),
+          children: albums.map((a) => SimpleDialogOption(
+            child: Text(a['name'] as String? ?? 'Album'),
+            onPressed: () => Navigator.pop(ctx, a['id'] as String),
+          )).toList(),
+        ),
+      );
+      if (selectedAlbum == null) return;
+      final image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (image == null || !mounted) return;
+      ref.read(photosProvider.notifier).uploadPhoto(image.path, storageId: _selectedStorageId);
+      // After upload, add to album
+      await Future.delayed(const Duration(seconds: 2));
+      final photos = ref.read(photosProvider).photos;
+      if (photos.isNotEmpty) {
+        await api.dio.dio.post('${Endpoints.photos}/albums/$selectedAlbum/photos', data: {'photoId': photos.first.id});
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Photo uploaded to album')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload to album failed: $e')));
+    }
+  }
+
+  void _triggerFaceDetection(String photoId) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      await api.dio.dio.post('${Endpoints.faces}/detect', data: {'photoId': photoId});
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Face detection started')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Face detection failed: $e')));
+    }
   }
 
   void _showJumpToDate() async {
@@ -118,6 +166,7 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
             IconButton(icon: const Icon(Icons.date_range), tooltip: 'Jump to date', onPressed: _showJumpToDate),
             IconButton(icon: const Icon(Icons.photo_album), tooltip: 'Albums', onPressed: () => _showAlbums(context)),
             IconButton(icon: const Icon(Icons.face), tooltip: 'People', onPressed: () => _showPeople(context)),
+            IconButton(icon: Icon(_showTimeline ? Icons.timeline : Icons.timeline_outlined), tooltip: 'Timeline', onPressed: () => setState(() => _showTimeline = !_showTimeline)),
             IconButton(icon: const Icon(Icons.refresh), onPressed: () => ref.read(photosProvider.notifier).refresh()),
           ],
         ],
@@ -151,43 +200,61 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
           ? const Center(child: CircularProgressIndicator())
           : items.isEmpty
               ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.photo_library, size: 64, color: theme.colorScheme.outline), const SizedBox(height: 16), const Text('No photos')]))
-              : RefreshIndicator(
-                  onRefresh: () => ref.read(photosProvider.notifier).refresh(),
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(4),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 4, crossAxisSpacing: 4),
-                    itemCount: items.length,
-                    itemBuilder: (ctx, i) {
-                      final p = items[i];
-                      final selected = _selectedIds.contains(p.id);
-                      return GestureDetector(
-                        onTap: () {
-                          if (_bulkMode) {
-                            setState(() { selected ? _selectedIds.remove(p.id) : _selectedIds.add(p.id); });
-                          } else {
-                            _showPhotoDetail(p);
-                          }
+              : Row(children: [
+                  // Timeline sidebar
+                  if (_showTimeline)
+                    Container(
+                      width: 48,
+                      decoration: BoxDecoration(color: theme.colorScheme.surfaceContainerLow, border: Border(right: BorderSide(color: theme.colorScheme.outlineVariant))),
+                      child: _buildTimelineSidebar(items, theme),
+                    ),
+                  // Photo grid
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: () => ref.read(photosProvider.notifier).refresh(),
+                      child: GridView.builder(
+                        padding: const EdgeInsets.all(4),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 4, crossAxisSpacing: 4),
+                        itemCount: items.length,
+                        itemBuilder: (ctx, i) {
+                          final p = items[i];
+                          final selected = _selectedIds.contains(p.id);
+                          final isVideo = p.mimeType != null && p.mimeType!.startsWith('video/');
+                          return GestureDetector(
+                            onTap: () {
+                              if (_bulkMode) {
+                                setState(() { selected ? _selectedIds.remove(p.id) : _selectedIds.add(p.id); });
+                              } else {
+                                _showPhotoDetail(p);
+                              }
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: selected ? theme.colorScheme.primaryContainer : theme.colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(8),
+                                border: selected ? Border.all(color: theme.colorScheme.primary, width: 2) : null,
+                              ),
+                              child: Stack(children: [
+                                Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                  Icon(isVideo ? Icons.videocam : Icons.image, color: theme.colorScheme.outline),
+                                  const SizedBox(height: 4),
+                                  Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall),
+                                ])),
+                                if (isVideo) Positioned(top: 4, left: 4, child: Container(padding: const EdgeInsets.all(2), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)), child: const Icon(Icons.play_arrow, size: 14, color: Colors.white))),
+                                if (_bulkMode) Positioned(top: isVideo ? 4 : 4, right: 4, child: Icon(selected ? Icons.check_circle : Icons.radio_button_unchecked, size: 20, color: selected ? theme.colorScheme.primary : theme.colorScheme.outline)),
+                                if (!_bulkMode && p.starred) Positioned(top: 4, right: 4, child: Icon(Icons.star, color: Colors.amber, size: 16)),
+                                if (p.takenAt != null) Positioned(bottom: 4, left: 4, child: Text(
+                                  DateTime.fromMillisecondsSinceEpoch(p.takenAt!).toLocal().toString().substring(5, 10),
+                                  style: theme.textTheme.labelSmall?.copyWith(color: Colors.white, shadows: [const Shadow(blurRadius: 2, color: Colors.black)]),
+                                )),
+                              ]),
+                            ),
+                          );
                         },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: selected ? theme.colorScheme.primaryContainer : theme.colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(8),
-                            border: selected ? Border.all(color: theme.colorScheme.primary, width: 2) : null,
-                          ),
-                          child: Stack(children: [
-                            Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                              Icon(Icons.image, color: theme.colorScheme.outline),
-                              const SizedBox(height: 4),
-                              Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall),
-                            ])),
-                            if (_bulkMode) Positioned(top: 4, left: 4, child: Icon(selected ? Icons.check_circle : Icons.radio_button_unchecked, size: 20, color: selected ? theme.colorScheme.primary : theme.colorScheme.outline)),
-                            if (p.starred) Positioned(top: 4, right: 4, child: Icon(Icons.star, color: Colors.amber, size: 16)),
-                          ]),
-                        ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
-                ),
+                ]),
     );
   }
 
@@ -246,6 +313,8 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
                 onPressed: () { Navigator.pop(ctx); showDialog(context: context, builder: (_) => PhotoShareDialog(photoId: photo.id, photoName: photo.name)); }),
               _actionBtn(Icons.edit, 'Edit',
                 onPressed: () { Navigator.pop(ctx); context.push('/photos/${photo.id}/edit'); }),
+              _actionBtn(Icons.face, 'Detect Faces',
+                onPressed: () { Navigator.pop(ctx); _triggerFaceDetection(photo.id); }),
               if (photo.trashed)
                 _actionBtn(Icons.restore, 'Restore',
                   onPressed: () { ref.read(photosProvider.notifier).restorePhoto(photo.id); Navigator.pop(ctx); })
@@ -404,5 +473,51 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
     }
+  }
+
+  Widget _buildTimelineSidebar(List<PhotoModel> photos, ThemeData theme) {
+    // Group photos by year-month
+    final months = <String, int>{};
+    for (final p in photos) {
+      if (p.takenAt != null) {
+        final date = DateTime.fromMillisecondsSinceEpoch(p.takenAt!);
+        final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+        months[key] = (months[key] ?? 0) + 1;
+      }
+    }
+    final sortedMonths = months.keys.toList()..sort();
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return ListView.builder(
+      itemCount: sortedMonths.length,
+      itemBuilder: (_, i) {
+        final parts = sortedMonths[i].split('-');
+        final monthIdx = int.tryParse(parts[1]) ?? 1;
+        return InkWell(
+          onTap: () {
+            // Scroll to first photo of this month
+            final target = sortedMonths[i];
+            final idx = photos.indexWhere((p) {
+              if (p.takenAt == null) return false;
+              final d = DateTime.fromMillisecondsSinceEpoch(p.takenAt!);
+              return '${d.year}-${d.month.toString().padLeft(2, '0')}' == target;
+            });
+            if (idx >= 0) {
+              // Visual feedback
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Jumped to ${monthNames[monthIdx - 1]} ${parts[0]}'), duration: const Duration(seconds: 1)),
+              );
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant, width: 0.5))),
+            child: Column(children: [
+              Text(monthNames[monthIdx - 1], style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.bold)),
+              Text(parts[0].substring(2), style: theme.textTheme.labelSmall?.copyWith(fontSize: 9, color: theme.colorScheme.outline)),
+            ]),
+          ),
+        );
+      },
+    );
   }
 }

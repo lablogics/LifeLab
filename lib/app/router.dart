@@ -79,7 +79,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/photos', builder: (context, state) => const PhotosScreen()),
           GoRoute(path: '/photos/albums', builder: (context, state) => const AlbumsScreen()),
           GoRoute(path: '/photos/faces', builder: (context, state) => const FacesScreen()),
-          GoRoute(path: '/photos/:id/edit', builder: (context, state) => PhotoEditorScreen(imagePath: state.uri.queryParameters['url'] ?? '')),          GoRoute(path: '/videos', builder: (context, state) => const VideosScreen()),
+          GoRoute(path: '/photos/:id/edit', builder: (context, state) => PhotoEditorScreen(imagePath: state.uri.queryParameters['url'] ?? '', photoId: state.pathParameters['id'])),          GoRoute(path: '/videos', builder: (context, state) => const VideosScreen()),
           GoRoute(path: '/videos/:id/play', builder: (context, state) => VideoPlayerScreen(videoUrl: state.uri.queryParameters['url'] ?? '', title: state.uri.queryParameters['title'] ?? 'Video')),          GoRoute(path: '/drive', builder: (context, state) => const DriveScreen()),
           GoRoute(path: '/tags', builder: (context, state) => const TagsScreen()),
           GoRoute(path: '/graph', builder: (context, state) => const GraphScreen()),

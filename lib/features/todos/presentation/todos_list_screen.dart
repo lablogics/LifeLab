@@ -1,7 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../data/todos_providers.dart';
 import '../data/models/todo_model.dart';
+import 'package:lifelab_core/api/endpoints.dart';
+import 'package:lifelab_core/di/core_providers.dart';
 
 class TodosListScreen extends ConsumerStatefulWidget {
   const TodosListScreen({super.key});
@@ -13,6 +17,9 @@ class TodosListScreen extends ConsumerStatefulWidget {
 class _TodosListScreenState extends ConsumerState<TodosListScreen> {
   final _inputController = TextEditingController();
   bool _showInput = false;
+  bool _isBoardView = false;
+  bool _bulkMode = false;
+  final Set<String> _selectedIds = {};
 
   @override
   void initState() {
@@ -37,10 +44,26 @@ class _TodosListScreenState extends ConsumerState<TodosListScreen> {
         title: const Text('Todos'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.calendar_month),
-            tooltip: 'Calendar view',
-            onPressed: () => _showCalendarView(context, todosState),
+            icon: Icon(_isBoardView ? Icons.view_list : Icons.dashboard),
+            tooltip: _isBoardView ? 'List view' : 'Board view',
+            onPressed: () => setState(() => _isBoardView = !_isBoardView),
           ),
+          if (_bulkMode) ...[
+            TextButton(onPressed: () { _selectedIds.clear(); setState(() => _bulkMode = false); }, child: const Text('Cancel')),
+            if (_selectedIds.isNotEmpty) ...[
+              IconButton(icon: const Icon(Icons.check_circle), tooltip: 'Complete all', onPressed: () async {
+                for (final id in _selectedIds) { await ref.read(todosProvider.notifier).toggleTodo(id); }
+                setState(() { _selectedIds.clear(); _bulkMode = false; });
+              }),
+              IconButton(icon: const Icon(Icons.delete), tooltip: 'Delete all', onPressed: () async {
+                for (final id in _selectedIds) { await ref.read(todosProvider.notifier).deleteTodo(id); }
+                setState(() { _selectedIds.clear(); _bulkMode = false; });
+              }),
+            ],
+          ] else ...[
+            IconButton(icon: const Icon(Icons.checklist), tooltip: 'Select', onPressed: () => setState(() => _bulkMode = true)),
+            IconButton(icon: const Icon(Icons.download), tooltip: 'Export', onPressed: _exportTodos),
+          ],
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: 'Add todo',
@@ -121,7 +144,7 @@ class _TodosListScreenState extends ConsumerState<TodosListScreen> {
                 ],
               ),
             ),
-          // Todos list
+          // Todos list or board view
           Expanded(
             child: todosState.isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -147,25 +170,35 @@ class _TodosListScreenState extends ConsumerState<TodosListScreen> {
                               ],
                             ),
                           )
-                        : RefreshIndicator(
-                            onRefresh: () => ref.read(todosProvider.notifier).loadTodos(),
-                            child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              itemCount: filtered.where((t) => t.parentId == null).length,
-                              itemBuilder: (context, index) {
-                                final todo = filtered.where((t) => t.parentId == null).toList()[index];
-                                final subtasks = todosState.subtasksOf(todo.id).where((t) => filtered.contains(t)).toList();
-                                return _TodoTile(
-                                  todo: todo,
-                                  subtasks: subtasks,
-                                  onToggle: () => ref.read(todosProvider.notifier).toggleTodo(todo.id),
-                                  onDelete: () => _confirmDelete(context, todo),
-                                  onEdit: () => _editTodo(context, todo),
-                                  onAddSubtask: () => _addSubtask(context, todo),
-                                );
-                              },
-                            ),
-                          ),
+                        : _isBoardView
+                            ? _buildBoardView(context, todosState, theme)
+                            : RefreshIndicator(
+                                onRefresh: () => ref.read(todosProvider.notifier).loadTodos(),
+                                child: ListView.builder(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  itemCount: filtered.where((t) => t.parentId == null).length,
+                                  itemBuilder: (context, index) {
+                                    final todo = filtered.where((t) => t.parentId == null).toList()[index];
+                                    final subtasks = todosState.subtasksOf(todo.id).where((t) => filtered.contains(t)).toList();
+                                    return _TodoTile(
+                                      todo: todo,
+                                      subtasks: subtasks,
+                                      onToggle: () => ref.read(todosProvider.notifier).toggleTodo(todo.id),
+                                      onDelete: () => _confirmDelete(context, todo),
+                                      onEdit: () => _editTodo(context, todo),
+                                      onAddSubtask: () => _addSubtask(context, todo),
+                                      bulkMode: _bulkMode,
+                                      selected: _selectedIds.contains(todo.id),
+                                      onSelect: () {
+                                        setState(() {
+                                          _selectedIds.contains(todo.id) ? _selectedIds.remove(todo.id) : _selectedIds.add(todo.id);
+                                        });
+                                      },
+                                      onToggleFavorite: () => _toggleFavorite(todo),
+                                    );
+                                  },
+                                ),
+                              ),
           ),
         ],
       ),
@@ -212,42 +245,6 @@ class _TodosListScreenState extends ConsumerState<TodosListScreen> {
     }
   }
 
-  void _showCalendarView(BuildContext context, TodosState todosState) {
-    final now = DateTime.now();
-    final todosWithDue = todosState.todos.where((t) => t.dueDate != null && !t.completed).toList();
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.7, minChildSize: 0.4, maxChildSize: 0.9, expand: false,
-        builder: (ctx, scrollController) => Column(children: [
-          Padding(padding: const EdgeInsets.all(16), child: Text('Calendar View', style: Theme.of(ctx).textTheme.titleLarge)),
-          Expanded(child: ListView.builder(
-            controller: scrollController,
-            itemCount: 14,
-            itemBuilder: (ctx, i) {
-              final day = now.add(Duration(days: i));
-              final dayStr = '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-              final dayTodos = todosWithDue.where((t) => t.dueDate!.startsWith(dayStr)).toList();
-              if (dayTodos.isEmpty && i > 0) return const SizedBox.shrink();
-              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 4), child: Text(
-                  i == 0 ? 'Today' : i == 1 ? 'Tomorrow' : '${day.weekday.toString().substring(0, 3)} ${day.day}/${day.month}',
-                  style: Theme.of(ctx).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
-                )),
-                ...dayTodos.map((t) => ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.circle, size: 8),
-                  title: Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: t.priority != 'none' ? Text('Priority: ${t.priority}') : null,
-                )),
-              ]);
-            },
-          )),
-        ]),
-      ),
-    );
-  }
-
   void _addSubtask(BuildContext context, TodoModel parent) async {
     final controller = TextEditingController();
     final title = await showDialog<String>(
@@ -267,24 +264,114 @@ class _TodosListScreenState extends ConsumerState<TodosListScreen> {
   }
 
   void _editTodo(BuildContext context, TodoModel todo) async {
-    final controller = TextEditingController(text: todo.title);
-    final result = await showDialog<String>(
+    final titleCtrl = TextEditingController(text: todo.title);
+    final descCtrl = TextEditingController(text: todo.description ?? '');
+    String? selectedPriority = todo.priority;
+    String? selectedReminder = todo.reminderType ?? 'none';
+    final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Edit Todo'),
-        content: TextField(controller: controller, autofocus: true),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: titleCtrl, autofocus: true, decoration: const InputDecoration(labelText: 'Title')),
+            const SizedBox(height: 8),
+            TextField(controller: descCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Description')),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(value: selectedPriority, decoration: const InputDecoration(labelText: 'Priority'),
+              items: const [DropdownMenuItem(value: 'none', child: Text('None')), DropdownMenuItem(value: 'low', child: Text('Low')),
+                DropdownMenuItem(value: 'medium', child: Text('Medium')), DropdownMenuItem(value: 'high', child: Text('High'))],
+              onChanged: (v) { if (v != null) selectedPriority = v; }),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(value: selectedReminder, decoration: const InputDecoration(labelText: 'Reminder'),
+              items: const [DropdownMenuItem(value: 'none', child: Text('None')), DropdownMenuItem(value: 'daily', child: Text('Daily')),
+                DropdownMenuItem(value: 'weekly', child: Text('Weekly')), DropdownMenuItem(value: 'date', child: Text('On date'))],
+              onChanged: (v) { if (v != null) selectedReminder = v; }),
+            if (todo.noteId != null) const SizedBox(height: 8),
+            if (todo.noteId != null)
+              InkWell(
+                onTap: () { Navigator.pop(ctx); context.push('/notes/${todo.noteId}'); },
+                child: Row(children: [const Icon(Icons.link, size: 16), const SizedBox(width: 4), Text('Linked note: ${todo.noteId}', style: Theme.of(ctx).textTheme.bodySmall)]),
+              ),
+          ]),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            onPressed: () => Navigator.pop(ctx, {'title': titleCtrl.text.trim(), 'desc': descCtrl.text.trim(), 'priority': selectedPriority ?? 'none', 'reminder': selectedReminder ?? 'none'}),
             child: const Text('Save'),
           ),
         ],
       ),
     );
-    if (result != null && result.isNotEmpty && result != todo.title) {
-      ref.read(todosProvider.notifier).updateTodo(todo.id, title: result);
+    if (result != null && result['title']!.isNotEmpty && result['title'] != todo.title) {
+      ref.read(todosProvider.notifier).updateTodo(todo.id,
+        title: result['title'], priority: result['priority']);
     }
+  }
+
+  Widget _buildBoardView(BuildContext context, TodosState todosState, ThemeData theme) {
+    final active = todosState.todos.where((t) => !t.completed && t.parentId == null).toList();
+    final completed = todosState.todos.where((t) => t.completed && t.parentId == null).toList();
+    final highPriority = todosState.todos.where((t) => !t.completed && t.priority == 'high' && t.parentId == null).toList();
+    return Row(children: [
+      _boardColumn('To Do', active, theme, Colors.blue),
+      _boardColumn('In Progress', highPriority, theme, Colors.orange),
+      _boardColumn('Done', completed, theme, Colors.green),
+    ]);
+  }
+
+  Widget _boardColumn(String title, List<TodoModel> todos, ThemeData theme, Color color) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.all(4),
+        decoration: BoxDecoration(color: theme.colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(12)),
+        child: Column(children: [
+          Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+            Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            const SizedBox(width: 8),
+            Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+            const Spacer(),
+            Text('${todos.length}', style: theme.textTheme.labelSmall),
+          ])),
+          const Divider(height: 1),
+          Expanded(child: ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: todos.length,
+            itemBuilder: (_, i) {
+              final t = todos[i];
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  dense: true,
+                  leading: Checkbox(value: t.completed, onChanged: (_) => ref.read(todosProvider.notifier).toggleTodo(t.id), visualDensity: VisualDensity.compact),
+                  title: Text(t.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(decoration: t.completed ? TextDecoration.lineThrough : null)),
+                  subtitle: t.dueDate != null ? Text(t.dueDate!, style: theme.textTheme.bodySmall) : null,
+                  trailing: t.priority != 'none' ? Icon(Icons.flag, size: 14, color: t.priority == 'high' ? Colors.red : t.priority == 'medium' ? Colors.orange : Colors.blue) : null,
+                ),
+              );
+            },
+          )),
+        ]),
+      ),
+    );
+  }
+
+  void _exportTodos() async {
+    final todos = ref.read(todosProvider).todos;
+    final jsonStr = jsonEncode(todos.map((t) => t.toJson()).toList());
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Export Todos'),
+      content: SelectableText(jsonStr, style: const TextStyle(fontFamily: 'monospace', fontSize: 10)),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+    ));
+  }
+
+  Future<void> _toggleFavorite(TodoModel todo) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      await api.dio.dio.put('${Endpoints.todos}/${todo.id}', data: {'favorite': !(todo.priority == 'high')});
+    } catch (_) {}
   }
 }
 
@@ -295,6 +382,10 @@ class _TodoTile extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onEdit;
   final VoidCallback? onAddSubtask;
+  final bool bulkMode;
+  final bool selected;
+  final VoidCallback onSelect;
+  final VoidCallback onToggleFavorite;
 
   const _TodoTile({
     required this.todo,
@@ -303,6 +394,10 @@ class _TodoTile extends StatelessWidget {
     required this.onDelete,
     required this.onEdit,
     this.onAddSubtask,
+    this.bulkMode = false,
+    this.selected = false,
+    required this.onSelect,
+    required this.onToggleFavorite,
   });
 
   @override
@@ -331,14 +426,18 @@ class _TodoTile extends StatelessWidget {
         children: [
           Card(
             margin: const EdgeInsets.symmetric(vertical: 4),
+            color: selected ? theme.colorScheme.primaryContainer : null,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: Row(
                 children: [
-                  Checkbox(
-                    value: todo.completed,
-                    onChanged: (_) => onToggle(),
-                  ),
+                  if (bulkMode)
+                    Checkbox(value: selected, onChanged: (_) => onSelect(), visualDensity: VisualDensity.compact)
+                  else
+                    Checkbox(
+                      value: todo.completed,
+                      onChanged: (_) => onToggle(),
+                    ),
                   Expanded(
                     child: InkWell(
                       onTap: onEdit,
@@ -432,6 +531,14 @@ class _TodoTile extends StatelessWidget {
               onTap: () {
                 Navigator.pop(ctx);
                 onToggle();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.favorite_border),
+              title: const Text('Favorite'),
+              onTap: () {
+                Navigator.pop(ctx);
+                onToggleFavorite();
               },
             ),
             ListTile(

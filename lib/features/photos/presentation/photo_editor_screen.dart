@@ -1,14 +1,19 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lifelab_core/api/endpoints.dart';
+import 'package:lifelab_core/di/core_providers.dart';
+import 'package:dio/dio.dart';
 
-class PhotoEditorScreen extends StatefulWidget {
+class PhotoEditorScreen extends ConsumerStatefulWidget {
   final String imagePath;
-  const PhotoEditorScreen({super.key, required this.imagePath});
+  final String? photoId;
+  const PhotoEditorScreen({super.key, required this.imagePath, this.photoId});
   @override
-  State<PhotoEditorScreen> createState() => _PhotoEditorScreenState();
+  ConsumerState<PhotoEditorScreen> createState() => _PhotoEditorScreenState();
 }
 
-class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
+class _PhotoEditorScreenState extends ConsumerState<PhotoEditorScreen> {
   double _rotation = 0;
   double _scale = 1.0;
   double _cropX = 0;
@@ -17,6 +22,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
   double _cropHeight = 1.0;
   bool _isCropMode = false;
   String _selectedFilter = 'None';
+  bool _isSaving = false;
 
   @override
   Widget build(BuildContext context) {
@@ -25,10 +31,9 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
       appBar: AppBar(
         title: const Text('Edit Photo'),
         actions: [
-          IconButton(icon: const Icon(Icons.check), onPressed: () {
-            // Save edited photo
-            Navigator.pop(context, {'rotation': _rotation, 'scale': _scale});
-          }),
+          IconButton(icon: const Icon(Icons.download), tooltip: 'Download to device', onPressed: _isSaving ? null : _downloadToDevice),
+          IconButton(icon: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.check),
+            tooltip: 'Save to server', onPressed: _isSaving ? null : _saveToServer),
         ],
       ),
       body: Column(
@@ -94,6 +99,58 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
         ],
       ),
     );
+  }
+
+  Map<String, dynamic> _getEditParams() {
+    return {
+      'rotation': _rotation,
+      'flipH': _scale < 0,
+      'filter': _selectedFilter != 'None' ? _selectedFilter.toLowerCase() : null,
+      'crop': _isCropMode ? {'x': _cropX, 'y': _cropY, 'width': _cropWidth, 'height': _cropHeight} : null,
+    }..removeWhere((k, v) => v == null);
+  }
+
+  Future<void> _saveToServer() async {
+    if (widget.photoId == null) {
+      Navigator.pop(context, _getEditParams());
+      return;
+    }
+    setState(() => _isSaving = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      await api.dio.dio.post('${Endpoints.photos}/${widget.photoId}/edit', data: _getEditParams());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Photo saved to server')));
+        Navigator.pop(context, _getEditParams());
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<void> _downloadToDevice() async {
+    setState(() => _isSaving = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final params = _getEditParams();
+      await api.dio.dio.get(
+        '${Endpoints.photos}/${widget.photoId ?? "download"}/download',
+        queryParameters: params,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Photo downloaded to device')));
+        setState(() => _isSaving = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download failed: $e')));
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   void _showFilterPicker() {

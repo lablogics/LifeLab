@@ -9,6 +9,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:dio/dio.dart';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'theme_provider.dart';
 
 class SessionModel {
   final String id; final String? userAgent; final bool isCurrent; final int? expiresAt;
@@ -34,6 +35,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _themeMode = 'system';
   List<Map<String, dynamic>> _storages = [];
   final _secureStorage = FlutterSecureStorage();
+  String _webClipperStatus = 'Not installed';
 
   @override
   void initState() {
@@ -42,6 +44,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _checkBiometric();
     _loadStorages();
     _loadThemeMode();
+    _checkWebClipper();
   }
 
   Future<void> _loadThemeMode() async {
@@ -53,7 +56,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _saveThemeMode(String mode) async {
     setState(() => _themeMode = mode);
-    try { await _secureStorage.write(key: 'themeMode', value: mode); } catch (_) {}
+    ref.read(themeProvider.notifier).setThemeMode(mode);
+  }
+
+  void _checkWebClipper() {
+    // Web clipper is a browser extension / desktop feature — on mobile we show status
+    setState(() => _webClipperStatus = 'N/A on mobile');
   }
 
   Future<void> _checkBiometric() async {
@@ -157,6 +165,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ));
         }),
         ListTile(leading: const Icon(Icons.info), title: const Text('About LifeLab'), subtitle: const Text('Version 1.0.0')),
+        const Divider(),
+        // Web Clipper section
+        ListTile(leading: const Icon(Icons.content_paste), title: const Text('Web Clipper'),
+          subtitle: Text(_webClipperStatus),
+          onTap: () {
+            showDialog(context: context, builder: (ctx) => AlertDialog(
+              title: const Text('Web Clipper'),
+              content: const Text('Web Clipper is a browser extension that lets you clip web content directly to your notes. On mobile, you can use the "Clip Web Content" option from the note editor instead.'),
+              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+            ));
+          }),
         const Divider(),
         Padding(padding: const EdgeInsets.all(16), child: FilledButton.tonal(onPressed: () async { await ref.read(authProvider.notifier).logout(); if (context.mounted) context.go('/login'); }, child: const Text('Sign Out'))),
       ]),

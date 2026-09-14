@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'app/router.dart';
+import 'app/theme_provider.dart';
 import 'package:app_links/app_links.dart';
 
 final FlutterLocalNotificationsPlugin localNotifications = FlutterLocalNotificationsPlugin();
@@ -67,7 +68,10 @@ Future<void> main() async {
     // Firebase not configured — app works without push
     debugPrint('Firebase not configured, push notifications disabled');
   }
-  runApp(const ProviderScope(child: LifeLabApp()));
+  // Load theme before launching app
+  final container = ProviderContainer();
+  await container.read(themeProvider.notifier).load();
+  runApp(ProviderScope(parent: container, child: const LifeLabApp()));
 }
 
 class LifeLabApp extends ConsumerWidget {
@@ -76,11 +80,15 @@ class LifeLabApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    final themeModeStr = ref.watch(themeProvider);
+    final themeMode = themeModeStr == 'light' ? ThemeMode.light
+        : themeModeStr == 'dark' ? ThemeMode.dark
+        : ThemeMode.system;
     return MaterialApp.router(
       title: 'LifeLab',
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );
